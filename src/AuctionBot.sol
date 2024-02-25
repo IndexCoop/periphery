@@ -41,7 +41,7 @@ contract AuctionBot is Ownable {
         bytes32 balancerPoolId;
     }
 
-    constructor(address _auctionRebalanceModule) {
+    constructor(address _auctionRebalanceModule) Ownable(msg.sender) {
         auctionRebalanceModule = IAuctionRebalanceModule(_auctionRebalanceModule);
         allowedCallers[msg.sender] = true;
     }
@@ -163,10 +163,10 @@ contract AuctionBot is Ownable {
         Bid memory bid = abi.decode(data, (Bid));
         uint256  amountToRepay = amount1Delta > 0 ? uint256(amount1Delta) : uint256(amount0Delta);
         if(bid.isSellAuction) {
-            _executeSellBid(amountToRepay, bid);
+            _executeSellBid(bid);
             bid.component.transfer(msg.sender, amountToRepay);
         } else {
-            _executeBuyBid(amountToRepay, bid);
+            _executeBuyBid(bid);
             bid.quoteAsset.transfer(msg.sender, amountToRepay);
         }
     }
@@ -179,13 +179,12 @@ contract AuctionBot is Ownable {
     ) external checkCallback {
         (Bid memory bid, BalancerData memory balancerData) = abi.decode(data, (Bid, BalancerData));
         uint256 amountToRepay = balancerData.receivingToken1 ? balancerData.amountSpecified + fee1 : balancerData.amountSpecified + fee0;
-        uint256 componentBalance  = bid.component.balanceOf(address(this));
         if(bid.isSellAuction) {
-            _executeSellBid(amountToRepay, bid);
+            _executeSellBid(bid);
             _fixedOutputSellBalancer(bid.component, bid.quoteAsset, amountToRepay, balancerData.balancerPoolId);
             bid.quoteAsset.transfer(msg.sender, amountToRepay);
         } else {
-            _executeBuyBid(amountToRepay, bid);
+            _executeBuyBid(bid);
             _fixedOutputSellBalancer(bid.quoteAsset, bid.component, amountToRepay, balancerData.balancerPoolId);
             bid.component.transfer(msg.sender, amountToRepay);
         }
@@ -229,13 +228,13 @@ contract AuctionBot is Ownable {
     }
 
     // @dev Execute a sell bid on the auction module paying in quoteAsset and getting component
-    function _executeSellBid(uint256 amountToRepay, Bid memory bid) internal {
+    function _executeSellBid(Bid memory bid) internal {
         bid.quoteAsset.approve(address(auctionRebalanceModule), type(uint256).max);
         auctionRebalanceModule.bid(address(bid.setToken), address(bid.component), address(bid.quoteAsset), bid.componentAmount, bid.quoteAssetLimit, bid.isSellAuction);
     }
 
     // @dev Execute buy bid on auction module paying in component and getting quoteAsset
-    function _executeBuyBid(uint256 amountToRepay, Bid memory bid) internal {
+    function _executeBuyBid(Bid memory bid) internal {
         bid.component.approve(address(auctionRebalanceModule), type(uint256).max);
         auctionRebalanceModule.bid(address(bid.setToken), address(bid.component), address(bid.quoteAsset), bid.componentAmount, bid.quoteAssetLimit, bid.isSellAuction);
     }
