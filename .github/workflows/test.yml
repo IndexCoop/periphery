@@ -1,6 +1,10 @@
 name: test
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
 env:
   MAINNET_RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
