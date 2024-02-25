@@ -134,12 +134,9 @@ contract TestAuctionBot is Test {
     }
 
     function _fulfillComponentBidViaBalancer(address componentAddress, uint256 componentQuantityPercentage, IUniswapV3Pool pool, bytes32 balancerPoolId) internal  {
-        console.log("Fulfilling bid for component: ", componentAddress);
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(dsEthAddress, componentAddress);
 
         uint256 componentQuantity = componentQuantityTotal * componentQuantityPercentage / 100;
-        console.log("componentQuantity: ", componentQuantity);
-        console.log("isSellAuction: ", isSellAuction);
 
         uint256 quoteQuantityLimit = isSellAuction ? type(uint256).max : 0;
 
@@ -157,23 +154,16 @@ contract TestAuctionBot is Test {
             balancerPoolId
         );
 
-        console.log("Profit: ", componentBalanceAfter);
     }
 
     function _fulfillComponentBid(address componentAddress, uint256 componentQuantityPercentage, IUniswapV3Pool pool) internal  {
-        console.log("Fulfilling bid for component: ", componentAddress);
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(dsEthAddress, componentAddress);
 
-        console.log("isSellAuction: ", isSellAuction);
         uint256 componentQuantity = componentQuantityTotal * componentQuantityPercentage / 100;
-        console.log("componentQuantity: ", componentQuantity);
 
         uint256 quoteQuantityLimit = isSellAuction ? type(uint256).max : 0;
 
         uint256 uniswapPrice = _getUniswapPrice(pool, componentAddress);
-        console.log("uniswapPrice: ", uniswapPrice);
-        console.log("quoteAssetQuantityUniswapPrice: ", uniswapPrice * componentQuantity / 1e18);
-        console.log("quoteAssetBalance: ", IERC20(wethAddress).balanceOf(dsEthAddress));
 
         IAuctionRebalanceModule.BidInfo memory bidPreview = auctionRebalanceModule.getBidPreview(
             dsEthAddress,
@@ -184,8 +174,6 @@ contract TestAuctionBot is Test {
             isSellAuction
         );
 
-        console.log("bidPreview.componentPrice: ", bidPreview.componentPrice);
-        console.log("bidPreview.quantitySentBySet", bidPreview.quantitySentBySet);
 
 
         vm.prank(arbBotOwner);
