@@ -133,50 +133,6 @@ contract TestAuctionBot is Test {
         _fulfillComponentBid(swEthAddress, componentQuantityPercentage, swEthPool);
     }
 
-    function testOptimisticAuctionOsEth() public {
-        vm.createSelectFork("mainnet", optimisticAuctionBlock);
-        _startRebalance();
-
-        uint64 secondsToForward = 60 * 60 * 5;
-        uint256 componentQuantityPercentage = 1;
-        console.log("Forwarding time to: ", block.timestamp + secondsToForward);
-        vm.warp(block.timestamp + secondsToForward);
-
-
-        _fulfillComponentBidViaBalancer(osEthAddress, componentQuantityPercentage, wstEthPool, osEthBalancerPoolId);
-
-    }
-
-    function testOptimisticAuctionComplete() public {
-        vm.createSelectFork("mainnet", optimisticAuctionBlock);
-        _startRebalance();
-
-        uint256 timestampOsEthArb = block.timestamp + 60 * 190;
-        uint256 timestampWstEthArb = block.timestamp + 60 * 200;
-        uint256 timestampSecondStage = block.timestamp + 60 * 260;
-        uint256 timestampThirdStage = block.timestamp + 60 * 300;
-        uint256 timestampFourthStage = block.timestamp + 60 * 335;
-
-        uint256 componentQuantityPercentage = 100;
-
-        vm.warp(timestampOsEthArb);
-
-        _fulfillComponentBidViaBalancer(osEthAddress, componentQuantityPercentage, wstEthPool, osEthBalancerPoolId);
-
-        vm.warp(timestampWstEthArb);
-        _fulfillComponentBid(wstEthAddress, componentQuantityPercentage, wstEthPool);
-
-        vm.warp(timestampSecondStage);
-        _fulfillComponentBid(rEthAddress, componentQuantityPercentage, rethPool);
-        _fulfillComponentBid(swEthAddress, componentQuantityPercentage, swEthPool);
-
-        vm.warp(timestampThirdStage);
-        _fulfillComponentBid(sfrxEthAddress, componentQuantityPercentage, sfrxEthPool);
-        vm.warp(timestampFourthStage);
-        _fulfillComponentBid(ethXAddress, 80, ethXPool);
-    }
-
-
     function _fulfillComponentBidViaBalancer(address componentAddress, uint256 componentQuantityPercentage, IUniswapV3Pool pool, bytes32 balancerPoolId) internal  {
         console.log("Fulfilling bid for component: ", componentAddress);
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(dsEthAddress, componentAddress);
