@@ -41,7 +41,7 @@ contract AuctionBot is Ownable {
         bytes32 balancerPoolId;
     }
 
-    constructor(address _auctionRebalanceModule) Ownable(msg.sender) {
+    constructor(address _auctionRebalanceModule) Ownable() {
         auctionRebalanceModule = IAuctionRebalanceModule(_auctionRebalanceModule);
         allowedCallers[msg.sender] = true;
     }
@@ -262,4 +262,3 @@ contract AuctionBot is Ownable {
         balancerVault.swap(singleSwap, fundManagement,  type(uint256).max, type(uint256).max);
     }
 }
-
