@@ -18,7 +18,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuar
  * StakeMessage to be signed by the staker to stake tokens.
  */
 contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard {
-    string private constant MESSAGE_TYPE = "StakeMessage(string message)";
+    string private constant MESSAGE_TYPE = "StakeMessage(uint256 nonce, uint256 deadline, uint256 amount)";
 
     /* ============ Events ============ */
 
@@ -32,9 +32,9 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
 
     /* ============ State Variables ============ */
 
-    string public stakeMessage;     // Message to sign when staking
     address public distributor;     // Distributor of rewards
 
+    mapping(address => uint256) public stakeNonce;      // Nonce of last stake action to avoid replay attack
     mapping(address => uint256) public lastSnapshotId;  // Snapshot ID of the last claim for each staker
     uint256[] public accrueSnapshots;                   // Amount of rewards accrued with each snapshot
 
@@ -54,7 +54,6 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
      * @notice Constructor to initialize the Snapshot Staking Pool.
      * @param _eip712Name Name of the EIP712 signing domain
      * @param _eip712Version Current major version of the EIP712 signing domain
-     * @param _stakeMessage The message to sign when staking
      * @param _name Name of the staked token
      * @param _symbol Symbol of the staked token
      * @param _rewardToken Instance of the reward token
@@ -65,7 +64,6 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
     constructor(
         string memory _eip712Name,
         string memory _eip712Version,
-        string memory _stakeMessage,
         string memory _name,
         string memory _symbol,
         IERC20 _rewardToken,
@@ -76,7 +74,6 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
         EIP712(_eip712Name, _eip712Version)
         ERC20(_name, _symbol)
     {
-        stakeMessage = _stakeMessage;
         rewardToken = _rewardToken;
         stakeToken = _stakeToken;
         distributor = _distributor;
@@ -89,11 +86,13 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
      * @notice Stake `amount` of stakeToken from `msg.sender` and mint staked tokens.
      * @param _amount The amount of stakeToken to stake
      */
-    function stake(uint256 _amount, bytes memory _signature) external nonReentrant {
+    function stake(uint256 _amount, bytes memory _signature, address _staker, uint256 _deadline) external nonReentrant {
         require(_amount > 0, "Cannot stake 0");
-        require(getSigner(_signature) == msg.sender, "Invalid signature");
-        stakeToken.transferFrom(msg.sender, address(this), _amount);
-        super._mint(msg.sender, _amount);
+        require(_deadline >= block.timestamp, "Deadline passed");
+        require(verifyStakeSignature(_signature, _staker, _deadline, _amount), "Invalid signature"); 
+        stakeToken.transferFrom(_staker, address(this), _amount);
+        stakeNonce[_staker]++;
+        super._mint(_staker, _amount);
     }
 
     /**
@@ -178,21 +177,24 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
      * @param _signature The signature to verify
      * @return The address of the signer
      */
-    function getSigner(bytes memory _signature) public view returns (address) {
-        bytes32 digest = getStakeSignatureDigest();
-        return ECDSA.recover(digest, _signature);
+    function verifyStakeSignature(bytes memory _signature, address _staker, uint256 _deadline, uint256 _amount) public view returns (bool) {
+        bytes32 digest = getStakeSignatureDigest(_staker, _deadline, _amount);
+        address signer = ECDSA.recover(digest, _signature);
+        return(signer == _staker);
     }
 
     /**
      * @notice Get the hashed digest of the message to be signed for staking
      * @return The hashed bytes to be signed
      */
-    function getStakeSignatureDigest() public view returns (bytes32) {
+    function getStakeSignatureDigest(address _staker, uint256 _deadline, uint256 _amount) public view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(
                 abi.encode(
                     keccak256(abi.encodePacked(MESSAGE_TYPE)),
-                    keccak256(bytes(stakeMessage))
+                    stakeNonce[_staker],
+                    _deadline,
+                    _amount
                 )
             )
         );

@@ -8,6 +8,9 @@ import "openzeppelin/mocks/ERC20Mock.sol";
 import "../src/SnapshotStakingPool.sol";
 
 contract SnapshotStakingPoolTest is Test {
+
+    uint256 constant DEFAULT_DEADLINE_SECONDS = 10;
+
     SnapshotStakingPool public snapshotStakingPool;
     ERC20Mock public rewardToken;
     ERC20Mock public stakeToken;
@@ -21,7 +24,6 @@ contract SnapshotStakingPoolTest is Test {
     uint256 public snapshotDelay = 30 days;
     string public eip712Name = "Index Coop";
     string public eip712Version = "v1";
-    string public message = "Sign message";
 
     function setUp() public {
         owner = msg.sender;
@@ -32,7 +34,6 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool = new SnapshotStakingPool(
             eip712Name,
             eip712Version,
-            message,
             "stakeToken Staking Pool",
             "stakeToken-POOL",
             IERC20(address(rewardToken)),
@@ -42,9 +43,9 @@ contract SnapshotStakingPoolTest is Test {
         );
     }
 
-    function signStakeMessage(VmSafe.Wallet memory staker) internal returns (bytes memory) {
+    function signStakeMessage(VmSafe.Wallet memory staker, uint256 deadline, uint256 amount) internal returns (bytes memory) {
 
-        bytes32 digest = snapshotStakingPool.getStakeSignatureDigest();
+        bytes32 digest = snapshotStakingPool.getStakeSignatureDigest(staker.addr, deadline, amount);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(staker, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
         bytes32 r_recovered;
@@ -63,6 +64,21 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(s, s_recovered);
         return signature;
 
+    }
+
+
+    function stake(uint256 amount, VmSafe.Wallet memory staker) internal {
+        stake(amount, block.timestamp + DEFAULT_DEADLINE_SECONDS, staker);
+    }
+
+    function stake(uint256 amount, uint256 deadline, VmSafe.Wallet memory staker) internal {
+        vm.prank(owner);
+        stakeToken.transfer(staker.addr, amount);
+        vm.prank(staker.addr);
+        stakeToken.approve(address(snapshotStakingPool), amount);
+
+        bytes memory signature = signStakeMessage(staker, deadline, amount);
+        snapshotStakingPool.stake(amount, signature, staker.addr, deadline);
     }
 
     function testConstructor() public {
@@ -98,17 +114,30 @@ contract SnapshotStakingPoolTest is Test {
         uint256 amount = 1 ether;
 
         vm.prank(owner);
-        stakeToken.transfer(bob.addr, amount);
+        stakeToken.transfer(bob.addr, amount * 2);
         vm.prank(bob.addr);
-        stakeToken.approve(address(snapshotStakingPool), amount);
+        stakeToken.approve(address(snapshotStakingPool), amount * 2);
+ 
+        uint256 deadline = block.timestamp + DEFAULT_DEADLINE_SECONDS;
+        bytes memory bobSignature = signStakeMessage(bob, deadline, amount);
 
-        bytes memory bobSignature = signStakeMessage(bob);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.stake(amount, bobSignature);
+        // Check that stake message can be submitted by someone else
+        vm.prank(carol.addr);
+        snapshotStakingPool.stake(amount, bobSignature, bob.addr, deadline);
 
         assertEq(stakeToken.balanceOf(address(snapshotStakingPool)), amount);
         assertEq(snapshotStakingPool.balanceOf(bob.addr), amount);
+
+        // Check that signature cannot be replayed
+        vm.expectRevert("Invalid signature");
+        snapshotStakingPool.stake(amount, bobSignature, bob.addr, deadline);
+
+        // Check that user can stake again with new signature
+        deadline = block.timestamp + DEFAULT_DEADLINE_SECONDS;
+        bobSignature = signStakeMessage(bob, deadline, amount);
+        snapshotStakingPool.stake(amount, bobSignature, bob.addr, deadline);
+        assertEq(stakeToken.balanceOf(address(snapshotStakingPool)), amount * 2);
+        assertEq(snapshotStakingPool.balanceOf(bob.addr), amount * 2);
 
         vm.prank(bob.addr);
         vm.expectRevert("Transfers not allowed");
@@ -118,15 +147,7 @@ contract SnapshotStakingPoolTest is Test {
     function testUnstake() public {
         uint256 amount = 1 ether;
 
-        vm.prank(owner);
-        stakeToken.transfer(bob.addr, amount);
-        vm.prank(bob.addr);
-        stakeToken.approve(address(snapshotStakingPool), amount);
-
-        bytes memory bobSignature = signStakeMessage(bob);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.stake(amount, bobSignature);
+        stake(amount, bob);
 
         vm.prank(bob.addr);
         snapshotStakingPool.unstake(amount);
@@ -138,15 +159,7 @@ contract SnapshotStakingPoolTest is Test {
     function testAccrue() public {
         uint256 amount = 1 ether;
 
-        vm.prank(owner);
-        stakeToken.transfer(bob.addr, amount);
-        vm.prank(bob.addr);
-        stakeToken.approve(address(snapshotStakingPool), amount);
-
-        bytes memory bobSignature = signStakeMessage(bob);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.stake(amount, bobSignature);
+        stake(amount, bob);
 
         vm.prank(owner);
         rewardToken.transfer(distributor, amount);
@@ -168,25 +181,8 @@ contract SnapshotStakingPoolTest is Test {
         uint256 snap2Amount = 1.5 ether;
         uint256 snap3Amount = 2 ether;
 
-        vm.startPrank(owner);
-        stakeToken.transfer(bob.addr, bobAmount);
-        stakeToken.transfer(alice.addr, aliceAmount);
-        stakeToken.transfer(carol.addr, carolAmount);
-        vm.stopPrank();
 
-        vm.prank(bob.addr);
-        stakeToken.approve(address(snapshotStakingPool), bobAmount);
-        vm.prank(alice.addr);
-        stakeToken.approve(address(snapshotStakingPool), aliceAmount);
-        vm.prank(carol.addr);
-        stakeToken.approve(address(snapshotStakingPool), carolAmount);
-
-        bytes memory bobSignature = signStakeMessage(bob);
-        bytes memory aliceSignature = signStakeMessage(alice);
-        bytes memory carolSignature = signStakeMessage(carol);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.stake(bobAmount, bobSignature);
+        stake(bobAmount, bob);
 
         vm.prank(owner);
         rewardToken.transfer(distributor, snap1Amount);
@@ -196,10 +192,8 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(distributor);
         snapshotStakingPool.accrue(snap1Amount);
 
-        vm.prank(alice.addr);
-        snapshotStakingPool.stake(aliceAmount, aliceSignature);
-        vm.prank(carol.addr);
-        snapshotStakingPool.stake(carolAmount, carolSignature);
+        stake(aliceAmount, alice);
+        stake(carolAmount, carol);
 
         vm.warp(block.timestamp + snapshotDelay);
 
@@ -236,25 +230,7 @@ contract SnapshotStakingPoolTest is Test {
         uint256 snap2Amount = 1.5 ether;
         uint256 snap3Amount = 2 ether;
 
-        vm.startPrank(owner);
-        stakeToken.transfer(bob.addr, bobAmount);
-        stakeToken.transfer(alice.addr, aliceAmount);
-        stakeToken.transfer(carol.addr, carolAmount);
-        vm.stopPrank();
-
-        vm.prank(bob.addr);
-        stakeToken.approve(address(snapshotStakingPool), bobAmount);
-        vm.prank(alice.addr);
-        stakeToken.approve(address(snapshotStakingPool), aliceAmount);
-        vm.prank(carol.addr);
-        stakeToken.approve(address(snapshotStakingPool), carolAmount);
-
-        bytes memory bobSignature = signStakeMessage(bob);
-        bytes memory aliceSignature = signStakeMessage(alice);
-        bytes memory carolSignature = signStakeMessage(carol);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.stake(bobAmount, bobSignature);
+        stake(bobAmount, bob);
 
         vm.prank(owner);
         rewardToken.transfer(distributor, snap1Amount);
@@ -264,10 +240,8 @@ contract SnapshotStakingPoolTest is Test {
         vm.warp(block.timestamp + snapshotDelay);
         snapshotStakingPool.accrue(snap1Amount);
 
-        vm.prank(alice.addr);
-        snapshotStakingPool.stake(aliceAmount, aliceSignature);
-        vm.prank(carol.addr);
-        snapshotStakingPool.stake(carolAmount, carolSignature);
+        stake(aliceAmount, alice);
+        stake(carolAmount, carol);
 
         vm.warp(block.timestamp + snapshotDelay);
 
