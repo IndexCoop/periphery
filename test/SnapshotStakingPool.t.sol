@@ -139,6 +139,25 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(stakeToken.balanceOf(address(snapshotStakingPool)), amount * 2);
         assertEq(snapshotStakingPool.balanceOf(bob.addr), amount * 2);
 
+        // Check that deadline is checked properly
+        deadline = block.timestamp - 1;
+        bobSignature = signStakeMessage(bob, deadline, amount);
+        vm.expectRevert("Deadline passed");
+        snapshotStakingPool.stake(amount, bobSignature, bob.addr, deadline);
+
+        // Check that deadline staker and amount cannot be altered
+        deadline = block.timestamp + DEFAULT_DEADLINE_SECONDS;
+        bobSignature = signStakeMessage(bob, deadline, amount);
+        // Alter deadline
+        vm.expectRevert("Invalid signature");
+        snapshotStakingPool.stake(amount, bobSignature, bob.addr, deadline  + 1);
+        // Alter staker
+        vm.expectRevert("Invalid signature");
+        snapshotStakingPool.stake(amount, bobSignature, alice.addr, deadline);
+        // Alter amount
+        vm.expectRevert("Invalid signature");
+        snapshotStakingPool.stake(amount+ 1, bobSignature, bob.addr, deadline);
+
         vm.prank(bob.addr);
         vm.expectRevert("Transfers not allowed");
         snapshotStakingPool.transfer(owner, amount);
