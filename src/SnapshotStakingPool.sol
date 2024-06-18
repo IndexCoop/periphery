@@ -179,7 +179,16 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
      * @return The address of the signer
      */
     function getSigner(bytes memory _signature) public view returns (address) {
-        bytes32 digest = _hashTypedDataV4(
+        bytes32 digest = getStakeSignatureDigest();
+        return ECDSA.recover(digest, _signature);
+    }
+
+    /**
+     * @notice Get the hashed digest of the message to be signed for staking
+     * @return The hashed bytes to be signed
+     */
+    function getStakeSignatureDigest() public view returns (bytes32) {
+        return _hashTypedDataV4(
             keccak256(
                 abi.encode(
                     keccak256(abi.encodePacked(MESSAGE_TYPE)),
@@ -187,7 +196,6 @@ contract SnapshotStakingPool is Ownable, ERC20Snapshot, EIP712, ReentrancyGuard 
                 )
             )
         );
-        return ECDSA.recover(digest, _signature);
     }
 
     /**
