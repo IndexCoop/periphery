@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 import "openzeppelin/token/ERC20/IERC20.sol";
 import "openzeppelin/mocks/ERC20Mock.sol";
-import "../src/SnapshotStakingPool.sol";
+import "../../src/staking/SnapshotStakingPool.sol";
 
 contract SnapshotStakingPoolTest is Test {
     SnapshotStakingPool public snapshotStakingPool;
@@ -19,9 +19,6 @@ contract SnapshotStakingPoolTest is Test {
     address public distributor = address(0x5);
 
     uint256 public snapshotDelay = 30 days;
-    string public eip712Name = "Index Coop";
-    string public eip712Version = "v1";
-    string public message = "Sign message";
 
     function setUp() public {
         owner = msg.sender;
@@ -30,9 +27,6 @@ contract SnapshotStakingPoolTest is Test {
         stakeToken = new ERC20Mock();
         stakeToken.mint(owner, 1_000_000 ether);
         snapshotStakingPool = new SnapshotStakingPool(
-            eip712Name,
-            eip712Version,
-            message,
             "stakeToken Staking Pool",
             "stakeToken-POOL",
             IERC20(address(rewardToken)),
@@ -40,29 +34,6 @@ contract SnapshotStakingPoolTest is Test {
             distributor,
             snapshotDelay
         );
-    }
-
-    function signStakeMessage(VmSafe.Wallet memory staker) internal returns (bytes memory) {
-
-        bytes32 digest = snapshotStakingPool.getStakeSignatureDigest();
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(staker, digest);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        bytes32 r_recovered;
-        bytes32 s_recovered;
-        uint8 v_recovered;
-        // ecrecover takes the signature parameters, and the only way to get them
-        // currently is to use assembly.
-        /// @solidity memory-safe-assembly
-        assembly {
-            r_recovered := mload(add(signature, 0x20))
-            s_recovered := mload(add(signature, 0x40))
-            v_recovered := byte(0, mload(add(signature, 0x60)))
-        }
-        assertEq(v, v_recovered);
-        assertEq(r, r_recovered);
-        assertEq(s, s_recovered);
-        return signature;
-
     }
 
     function testConstructor() public {
@@ -102,17 +73,17 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(bob.addr);
         stakeToken.approve(address(snapshotStakingPool), amount);
 
-        bytes memory bobSignature = signStakeMessage(bob);
-
         vm.prank(bob.addr);
-        snapshotStakingPool.stake(amount, bobSignature);
+        snapshotStakingPool.stake(amount);
 
         assertEq(stakeToken.balanceOf(address(snapshotStakingPool)), amount);
         assertEq(snapshotStakingPool.balanceOf(bob.addr), amount);
+        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 1);
+        assertEq(snapshotStakingPool.getCurrentSnapshotId(), 0);
 
         vm.prank(bob.addr);
-        vm.expectRevert("Transfers not allowed");
-        snapshotStakingPool.transfer(owner, amount);
+        vm.expectRevert("Cannot stake 0");
+        snapshotStakingPool.stake(0);
     }
 
     function testUnstake() public {
@@ -123,16 +94,18 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(bob.addr);
         stakeToken.approve(address(snapshotStakingPool), amount);
 
-        bytes memory bobSignature = signStakeMessage(bob);
-
         vm.prank(bob.addr);
-        snapshotStakingPool.stake(amount, bobSignature);
+        snapshotStakingPool.stake(amount);
 
         vm.prank(bob.addr);
         snapshotStakingPool.unstake(amount);
 
         assertEq(stakeToken.balanceOf(bob.addr), amount);
         assertEq(snapshotStakingPool.balanceOf(bob.addr), 0);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("Cannot unstake 0");
+        snapshotStakingPool.unstake(0);
     }
 
     function testAccrue() public {
@@ -143,10 +116,8 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(bob.addr);
         stakeToken.approve(address(snapshotStakingPool), amount);
 
-        bytes memory bobSignature = signStakeMessage(bob);
-
         vm.prank(bob.addr);
-        snapshotStakingPool.stake(amount, bobSignature);
+        snapshotStakingPool.stake(amount);
 
         vm.prank(owner);
         rewardToken.transfer(distributor, amount);
@@ -158,16 +129,102 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool.accrue(amount);
 
         assertEq(rewardToken.balanceOf(address(snapshotStakingPool)), amount);
+        assertEq(snapshotStakingPool.rewardSnapshots(0), amount);
+        assertEq(snapshotStakingPool.lastSnapshotTime(), block.timestamp);
+        assertEq(snapshotStakingPool.getCurrentSnapshotId(), 1);
+
+        vm.prank(distributor);
+        vm.expectRevert("Snapshot delay not passed");
+        snapshotStakingPool.accrue(amount);
+
+        vm.prank(distributor);
+        vm.expectRevert("Cannot accrue 0");
+        snapshotStakingPool.accrue(0);
+
+        vm.prank(bob.addr);
+        snapshotStakingPool.unstake(amount);
+
+        vm.prank(distributor);
+        vm.expectRevert("Cannot accrue with 0 staked supply");
+        snapshotStakingPool.accrue(amount);
     }
 
     function testClaim() public {
         uint256 bobAmount = 6 ether;
         uint256 aliceAmount = 4 ether;
         uint256 carolAmount = 5 ether;
+
         uint256 snap1Amount = 1 ether;
         uint256 snap2Amount = 1.5 ether;
         uint256 snap3Amount = 2 ether;
 
+        _setUpStakingAndSnapshots(bobAmount, aliceAmount, carolAmount, snap1Amount, snap2Amount, snap3Amount);
+
+        vm.prank(bob.addr);
+        snapshotStakingPool.claim();
+
+        assertEq(rewardToken.balanceOf(bob.addr), 
+            snap1Amount + 
+            (bobAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) + 
+            (bobAmount * snap3Amount / snapshotStakingPool.totalSupplyAt(3)) 
+        );
+        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 4);
+
+        vm.prank(alice.addr);
+        snapshotStakingPool.claim();
+
+        assertEq(rewardToken.balanceOf(alice.addr), 
+            (aliceAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) + 
+            (aliceAmount * snap3Amount / snapshotStakingPool.totalSupplyAt(3)) 
+        );
+        assertEq(snapshotStakingPool.nextClaimId(alice.addr), 4);
+
+        vm.prank(carol.addr);
+        snapshotStakingPool.claim();
+
+        assertEq(rewardToken.balanceOf(carol.addr), 
+            (carolAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) 
+        );
+
+        vm.prank(bob.addr);
+        vm.expectRevert("Cannot claim from future snapshots");
+        snapshotStakingPool.claim();
+
+        vm.prank(alice.addr);
+        snapshotStakingPool.unstake(aliceAmount);
+
+        uint256 snap4Amount = 3 ether;
+        vm.prank(owner);
+        rewardToken.transfer(distributor, snap4Amount);
+        vm.prank(distributor);
+        rewardToken.approve(address(snapshotStakingPool), snap4Amount);
+        vm.warp(block.timestamp + snapshotDelay);
+        vm.prank(distributor);
+        snapshotStakingPool.accrue(snap4Amount);
+
+        vm.prank(bob.addr);
+        snapshotStakingPool.claim();
+
+        assertEq(rewardToken.balanceOf(bob.addr), 
+            snap1Amount + 
+            (bobAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) + 
+            (bobAmount * snap3Amount / snapshotStakingPool.totalSupplyAt(3)) + 
+            (bobAmount * snap4Amount / snapshotStakingPool.totalSupplyAt(4))
+        );
+
+        vm.prank(alice.addr);
+        vm.expectRevert("No rewards to claim");
+        snapshotStakingPool.claim();
+    }
+
+    function _setUpStakingAndSnapshots(
+        uint256 bobAmount,
+        uint256 aliceAmount,
+        uint256 carolAmount,
+        uint256 snap1Amount,
+        uint256 snap2Amount,
+        uint256 snap3Amount
+    ) internal {
         vm.startPrank(owner);
         stakeToken.transfer(bob.addr, bobAmount);
         stakeToken.transfer(alice.addr, aliceAmount);
@@ -181,12 +238,8 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(carol.addr);
         stakeToken.approve(address(snapshotStakingPool), carolAmount);
 
-        bytes memory bobSignature = signStakeMessage(bob);
-        bytes memory aliceSignature = signStakeMessage(alice);
-        bytes memory carolSignature = signStakeMessage(carol);
-
         vm.prank(bob.addr);
-        snapshotStakingPool.stake(bobAmount, bobSignature);
+        snapshotStakingPool.stake(bobAmount);
 
         vm.prank(owner);
         rewardToken.transfer(distributor, snap1Amount);
@@ -197,9 +250,9 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool.accrue(snap1Amount);
 
         vm.prank(alice.addr);
-        snapshotStakingPool.stake(aliceAmount, aliceSignature);
+        snapshotStakingPool.stake(aliceAmount);
         vm.prank(carol.addr);
-        snapshotStakingPool.stake(carolAmount, carolSignature);
+        snapshotStakingPool.stake(carolAmount);
 
         vm.warp(block.timestamp + snapshotDelay);
 
@@ -221,78 +274,5 @@ contract SnapshotStakingPoolTest is Test {
         rewardToken.approve(address(snapshotStakingPool), snap3Amount);
         vm.prank(distributor);
         snapshotStakingPool.accrue(snap3Amount);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.claim();
-
-        // More assertions can be added here to verify the claim logic
-    }
-
-    function testClaimPartial() public {
-        uint256 bobAmount = 6 ether;
-        uint256 aliceAmount = 4 ether;
-        uint256 carolAmount = 5 ether;
-        uint256 snap1Amount = 1 ether;
-        uint256 snap2Amount = 1.5 ether;
-        uint256 snap3Amount = 2 ether;
-
-        vm.startPrank(owner);
-        stakeToken.transfer(bob.addr, bobAmount);
-        stakeToken.transfer(alice.addr, aliceAmount);
-        stakeToken.transfer(carol.addr, carolAmount);
-        vm.stopPrank();
-
-        vm.prank(bob.addr);
-        stakeToken.approve(address(snapshotStakingPool), bobAmount);
-        vm.prank(alice.addr);
-        stakeToken.approve(address(snapshotStakingPool), aliceAmount);
-        vm.prank(carol.addr);
-        stakeToken.approve(address(snapshotStakingPool), carolAmount);
-
-        bytes memory bobSignature = signStakeMessage(bob);
-        bytes memory aliceSignature = signStakeMessage(alice);
-        bytes memory carolSignature = signStakeMessage(carol);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.stake(bobAmount, bobSignature);
-
-        vm.prank(owner);
-        rewardToken.transfer(distributor, snap1Amount);
-        vm.prank(distributor);
-        rewardToken.approve(address(snapshotStakingPool), snap1Amount);
-        vm.prank(distributor);
-        vm.warp(block.timestamp + snapshotDelay);
-        snapshotStakingPool.accrue(snap1Amount);
-
-        vm.prank(alice.addr);
-        snapshotStakingPool.stake(aliceAmount, aliceSignature);
-        vm.prank(carol.addr);
-        snapshotStakingPool.stake(carolAmount, carolSignature);
-
-        vm.warp(block.timestamp + snapshotDelay);
-
-        vm.prank(owner);
-        rewardToken.transfer(distributor, snap2Amount);
-        vm.prank(distributor);
-        rewardToken.approve(address(snapshotStakingPool), snap2Amount);
-        vm.prank(distributor);
-        snapshotStakingPool.accrue(snap2Amount);
-
-        vm.prank(carol.addr);
-        snapshotStakingPool.unstake(carolAmount);
-
-        vm.warp(block.timestamp + snapshotDelay);
-
-        vm.prank(owner);
-        rewardToken.transfer(distributor, snap3Amount);
-        vm.prank(distributor);
-        rewardToken.approve(address(snapshotStakingPool), snap3Amount);
-        vm.prank(distributor);
-        snapshotStakingPool.accrue(snap3Amount);
-
-        vm.prank(bob.addr);
-        snapshotStakingPool.claimPartial(0, 2);
-
-        // More assertions can be added here to verify the partial claim logic
     }
 }
