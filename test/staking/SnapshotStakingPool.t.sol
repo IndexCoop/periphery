@@ -194,13 +194,8 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool.unstake(aliceAmount);
 
         uint256 snap4Amount = 3 ether;
-        vm.prank(owner);
-        rewardToken.transfer(distributor, snap4Amount);
-        vm.prank(distributor);
-        rewardToken.approve(address(snapshotStakingPool), snap4Amount);
         vm.warp(block.timestamp + snapshotDelay);
-        vm.prank(distributor);
-        snapshotStakingPool.accrue(snap4Amount);
+        _snapshot(snap4Amount);
 
         vm.prank(bob.addr);
         snapshotStakingPool.claim();
@@ -241,13 +236,8 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(bob.addr);
         snapshotStakingPool.stake(bobAmount);
 
-        vm.prank(owner);
-        rewardToken.transfer(distributor, snap1Amount);
-        vm.prank(distributor);
-        rewardToken.approve(address(snapshotStakingPool), snap1Amount);
         vm.warp(block.timestamp + snapshotDelay);
-        vm.prank(distributor);
-        snapshotStakingPool.accrue(snap1Amount);
+        _snapshot(snap1Amount);
 
         vm.prank(alice.addr);
         snapshotStakingPool.stake(aliceAmount);
@@ -256,23 +246,22 @@ contract SnapshotStakingPoolTest is Test {
 
         vm.warp(block.timestamp + snapshotDelay);
 
-        vm.prank(owner);
-        rewardToken.transfer(distributor, snap2Amount);
-        vm.prank(distributor);
-        rewardToken.approve(address(snapshotStakingPool), snap2Amount);
-        vm.prank(distributor);
-        snapshotStakingPool.accrue(snap2Amount);
+        _snapshot(snap2Amount);
 
         vm.prank(carol.addr);
         snapshotStakingPool.unstake(carolAmount);
 
         vm.warp(block.timestamp + snapshotDelay + 1);
 
+        _snapshot(snap3Amount);
+    }
+
+    function _snapshot(uint256 amount) internal {
         vm.prank(owner);
-        rewardToken.transfer(distributor, snap3Amount);
+        rewardToken.transfer(distributor, amount);
         vm.prank(distributor);
-        rewardToken.approve(address(snapshotStakingPool), snap3Amount);
+        rewardToken.approve(address(snapshotStakingPool), amount);
         vm.prank(distributor);
-        snapshotStakingPool.accrue(snap3Amount);
+        snapshotStakingPool.accrue(amount);
     }
 }
