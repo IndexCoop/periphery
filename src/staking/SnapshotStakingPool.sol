@@ -159,7 +159,7 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     /// @inheritdoc ISnapshotStakingPool
     function rewardOfInRange(address account, uint256 startSnapshotId, uint256 endSnapshotId) public view returns (uint256) {
         require(startSnapshotId > 0, "ERC20Snapshot: id is 0");
-        require(startSnapshotId <= endSnapshotId && endSnapshotId <= _getCurrentSnapshotId(), "Cannot claim from future snapshots");
+        require(startSnapshotId <= endSnapshotId && endSnapshotId <= _getCurrentSnapshotId(), "ERC20Snapshot: nonexistent id");
 
         uint256 rewards = 0;
         for (uint256 i = startSnapshotId; i <= endSnapshotId; i++) {
@@ -171,7 +171,7 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     /// @inheritdoc ISnapshotStakingPool
     function rewardOfAt(address account, uint256 snapshotId) public view virtual returns (uint256) {
         require(snapshotId > 0, "ERC20Snapshot: id is 0");
-        require(snapshotId <= _getCurrentSnapshotId(), "Cannot claim from future snapshots");
+        require(snapshotId <= _getCurrentSnapshotId(), "ERC20Snapshot: nonexistent id");
         return _rewardOfAt(account, snapshotId);
     }
 

@@ -47,7 +47,11 @@ contract SnapshotStakingPoolTest is Test {
 
     function testSetDistributor() public {
         address newDistributor = address(0x6);
+
+        vm.expectEmit();
+        emit SnapshotStakingPool.DistributorChanged(newDistributor);
         snapshotStakingPool.setDistributor(newDistributor);
+
         assertEq(snapshotStakingPool.distributor(), newDistributor);
 
         vm.prank(bob.addr);
@@ -57,7 +61,11 @@ contract SnapshotStakingPoolTest is Test {
 
     function testSetSnapshotDelay() public {
         uint256 newSnapshotDelay = 365 days;
+
+        vm.expectEmit();
+        emit SnapshotStakingPool.SnapshotDelayChanged(newSnapshotDelay);
         snapshotStakingPool.setSnapshotDelay(newSnapshotDelay);
+
         assertEq(snapshotStakingPool.snapshotDelay(), newSnapshotDelay);
 
         vm.prank(bob.addr);
@@ -147,113 +155,286 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(distributor);
         vm.expectRevert("Cannot accrue with 0 staked supply");
         snapshotStakingPool.accrue(amount);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("Must be distributor");
+        snapshotStakingPool.accrue(amount);
+    }
+
+    function testGetCurrentSnapshotId() public {
+        assertEq(snapshotStakingPool.getCurrentSnapshotId(), 0);
+
+        _stake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getCurrentSnapshotId(), 1);
+    }
+
+    function testRewardAt() public {
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.rewardAt(0);
+
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.rewardAt(1);
+
+        _stake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.rewardAt(1), 1 ether);
+
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.rewardAt(2);
+    }
+
+    function testRewardOfAt() public {
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.rewardOfAt(bob.addr, 0);
+
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.rewardOfAt(bob.addr, 1);
+
+        _stake(bob.addr, 1 ether);
+        _stake(alice.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.rewardOfAt(bob.addr, 1), 0.5 ether);
+        assertEq(snapshotStakingPool.rewardOfAt(alice.addr, 1), 0.5 ether);
+
+        _unstake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.rewardOfAt(bob.addr, 2), 0);
+        assertEq(snapshotStakingPool.rewardOfAt(alice.addr, 2), 1 ether);
+
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.rewardOfAt(bob.addr, 3);
+    }
+
+    function testRewardOfInRange() public {
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.rewardOfInRange(bob.addr, 0, 0);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.rewardOfInRange(bob.addr, 0, 1);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.rewardOfInRange(bob.addr, 1, 1);
+
+        _stake(bob.addr, 1 ether);
+        _stake(alice.addr, 1 ether);
+        _snapshot(2 ether);
+
+        assertEq(snapshotStakingPool.rewardOfInRange(bob.addr, 1, 1), 1 ether);
+        assertEq(snapshotStakingPool.rewardOfInRange(alice.addr, 1, 1), 1 ether);
+
+        _snapshot(2 ether);
+        _snapshot(2 ether);
+
+        assertEq(snapshotStakingPool.rewardOfInRange(bob.addr, 1, 2), 2 ether);
+        assertEq(snapshotStakingPool.rewardOfInRange(alice.addr, 1, 3), 3 ether);
+
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.rewardOfInRange(bob.addr, 1, 4);
+    }
+
+    function testGetPendingRewards() public {
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.getPendingRewards(bob.addr);
+
+        _stake(bob.addr, 1 ether);
+        _stake(alice.addr, 1 ether);
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.getPendingRewards(bob.addr);
+
+        _snapshot(2 ether);
+        assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 1 ether);
+        assertEq(snapshotStakingPool.getPendingRewards(alice.addr), 1 ether);
+
+        vm.prank(bob.addr);
+        snapshotStakingPool.claim();
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 0);
+
+        _snapshot(1 ether);
+        assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 0.5 ether);
+        assertEq(snapshotStakingPool.getPendingRewards(alice.addr), 1.5 ether);
+
+        _snapshot(2 ether);
+        assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 1.5 ether);
+        assertEq(snapshotStakingPool.getPendingRewards(alice.addr), 2.5 ether);
+
+        _unstake(alice.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 2.5 ether);
+        assertEq(snapshotStakingPool.getPendingRewards(alice.addr), 2.5 ether);
+    }
+
+    function testGetRewardSnapshots() public {
+        assertEq(snapshotStakingPool.getRewardSnapshots().length, 0);
+
+        _stake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getRewardSnapshots().length, 1);
+        assertEq(snapshotStakingPool.getRewardSnapshots()[0], 1 ether);
+
+        _snapshot(2 ether);
+
+        assertEq(snapshotStakingPool.getRewardSnapshots().length, 2);
+        assertEq(snapshotStakingPool.getRewardSnapshots()[0], 1 ether);
+        assertEq(snapshotStakingPool.getRewardSnapshots()[1], 2 ether);
+    }
+
+    function testCanAccrue() public {
+        assertEq(snapshotStakingPool.canAccrue(), false);
+
+        vm.warp(block.timestamp + snapshotDelay + 1);
+        assertEq(snapshotStakingPool.canAccrue(), true);
+
+        _stake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.canAccrue(), false);
+
+        vm.warp(block.timestamp + snapshotDelay + 1);
+        assertEq(snapshotStakingPool.canAccrue(), true);
     }
 
     function testClaim() public {
-        uint256 bobAmount = 6 ether;
-        uint256 aliceAmount = 4 ether;
-        uint256 carolAmount = 5 ether;
+        vm.prank(bob.addr);
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.claim();
 
-        uint256 snap1Amount = 1 ether;
-        uint256 snap2Amount = 1.5 ether;
-        uint256 snap3Amount = 2 ether;
+        _stake(bob.addr, 1 ether);
+        _stake(alice.addr, 1 ether);
+        vm.prank(bob.addr);
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.claim();
 
-        _setUpStakingAndSnapshots(bobAmount, aliceAmount, carolAmount, snap1Amount, snap2Amount, snap3Amount);
-
+        _snapshot(2 ether);
         vm.prank(bob.addr);
         snapshotStakingPool.claim();
 
-        assertEq(rewardToken.balanceOf(bob.addr), 
-            snap1Amount + 
-            (bobAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) + 
-            (bobAmount * snap3Amount / snapshotStakingPool.totalSupplyAt(3)) 
-        );
-        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 4);
+        assertEq(rewardToken.balanceOf(bob.addr), 1 ether);
+        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 2);
+
+        _snapshot(2 ether);
+        vm.prank(bob.addr);
+        snapshotStakingPool.claim();
+        vm.prank(alice.addr);
+        snapshotStakingPool.claim();
+
+        assertEq(rewardToken.balanceOf(bob.addr), 2 ether);
+        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 3);
+        assertEq(rewardToken.balanceOf(alice.addr), 2 ether);
+        assertEq(snapshotStakingPool.nextClaimId(alice.addr), 3);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.claim();
+        vm.prank(alice.addr);
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.claim();
+
+        _snapshot(1 ether);
+        _unstake(alice.addr, 1 ether);
+        _snapshot(1 ether);
+        _snapshot(1 ether);
 
         vm.prank(alice.addr);
         snapshotStakingPool.claim();
 
-        assertEq(rewardToken.balanceOf(alice.addr), 
-            (aliceAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) + 
-            (aliceAmount * snap3Amount / snapshotStakingPool.totalSupplyAt(3)) 
-        );
-        assertEq(snapshotStakingPool.nextClaimId(alice.addr), 4);
-
-        vm.prank(carol.addr);
-        snapshotStakingPool.claim();
-
-        assertEq(rewardToken.balanceOf(carol.addr), 
-            (carolAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) 
-        );
-
-        vm.prank(bob.addr);
-        vm.expectRevert("Cannot claim from future snapshots");
-        snapshotStakingPool.claim();
-
-        vm.prank(alice.addr);
-        snapshotStakingPool.unstake(aliceAmount);
-
-        uint256 snap4Amount = 3 ether;
-        vm.warp(block.timestamp + snapshotDelay);
-        _snapshot(snap4Amount);
+        assertEq(rewardToken.balanceOf(alice.addr), 2.5 ether);
+        assertEq(snapshotStakingPool.nextClaimId(alice.addr), 6);
 
         vm.prank(bob.addr);
         snapshotStakingPool.claim();
 
-        assertEq(rewardToken.balanceOf(bob.addr), 
-            snap1Amount + 
-            (bobAmount * snap2Amount / snapshotStakingPool.totalSupplyAt(2)) + 
-            (bobAmount * snap3Amount / snapshotStakingPool.totalSupplyAt(3)) + 
-            (bobAmount * snap4Amount / snapshotStakingPool.totalSupplyAt(4))
-        );
-
-        vm.prank(alice.addr);
-        vm.expectRevert("No rewards to claim");
-        snapshotStakingPool.claim();
+        assertEq(rewardToken.balanceOf(bob.addr), 4.5 ether);
+        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 6);
     }
 
-    function _setUpStakingAndSnapshots(
-        uint256 bobAmount,
-        uint256 aliceAmount,
-        uint256 carolAmount,
-        uint256 snap1Amount,
-        uint256 snap2Amount,
-        uint256 snap3Amount
-    ) internal {
-        vm.startPrank(owner);
-        stakeToken.transfer(bob.addr, bobAmount);
-        stakeToken.transfer(alice.addr, aliceAmount);
-        stakeToken.transfer(carol.addr, carolAmount);
-        vm.stopPrank();
+    function testClaimPartial() public {
+        vm.prank(bob.addr);
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.claimPartial(0, 0);
 
         vm.prank(bob.addr);
-        stakeToken.approve(address(snapshotStakingPool), bobAmount);
-        vm.prank(alice.addr);
-        stakeToken.approve(address(snapshotStakingPool), aliceAmount);
-        vm.prank(carol.addr);
-        stakeToken.approve(address(snapshotStakingPool), carolAmount);
+        vm.expectRevert("ERC20Snapshot: id is 0");
+        snapshotStakingPool.claimPartial(0, 1);
 
         vm.prank(bob.addr);
-        snapshotStakingPool.stake(bobAmount);
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.claimPartial(1, 1);
 
-        vm.warp(block.timestamp + snapshotDelay);
-        _snapshot(snap1Amount);
+        _stake(bob.addr, 1 ether);
+        _stake(alice.addr, 1 ether);
+        _snapshot(2 ether);
+
+        vm.prank(bob.addr);
+        snapshotStakingPool.claimPartial(1, 1);
+
+        assertEq(rewardToken.balanceOf(bob.addr), 1 ether);
+        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 2);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("Cannot claim from past snapshots");
+        snapshotStakingPool.claimPartial(1, 1);
+
+        _snapshot(2 ether);
+        _snapshot(2 ether);
 
         vm.prank(alice.addr);
-        snapshotStakingPool.stake(aliceAmount);
-        vm.prank(carol.addr);
-        snapshotStakingPool.stake(carolAmount);
+        snapshotStakingPool.claimPartial(1, 2);
 
-        vm.warp(block.timestamp + snapshotDelay);
+        assertEq(rewardToken.balanceOf(alice.addr), 2 ether);
+        assertEq(snapshotStakingPool.nextClaimId(alice.addr), 3);
 
-        _snapshot(snap2Amount);
+        vm.prank(alice.addr);
+        snapshotStakingPool.claimPartial(3, 3);
 
-        vm.prank(carol.addr);
-        snapshotStakingPool.unstake(carolAmount);
+        assertEq(rewardToken.balanceOf(alice.addr), 3 ether);
+        assertEq(snapshotStakingPool.nextClaimId(alice.addr), 4);
 
-        vm.warp(block.timestamp + snapshotDelay + 1);
+        vm.prank(alice.addr);
+        vm.expectRevert("Cannot claim from past snapshots");
+        snapshotStakingPool.claimPartial(1, 3);
 
-        _snapshot(snap3Amount);
+        vm.prank(alice.addr);
+        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        snapshotStakingPool.claimPartial(4, 4);
+
+        _unstake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+        _snapshot(1 ether);
+
+        vm.prank(bob.addr);
+        snapshotStakingPool.claimPartial(2, 5);
+
+        assertEq(rewardToken.balanceOf(bob.addr), 3 ether);
+        assertEq(snapshotStakingPool.nextClaimId(bob.addr), 6);
+    }
+
+    function testTransfer() public {
+        _stake(bob.addr, 1 ether);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("Transfers not allowed");
+        snapshotStakingPool.transfer(alice.addr, 1 ether);
+    }
+
+    function testTransferFrom() public {
+        _stake(bob.addr, 1 ether);
+
+        vm.prank(bob.addr);
+        snapshotStakingPool.approve(alice.addr, 1 ether);
+
+        vm.prank(alice.addr);
+        vm.expectRevert("Transfers not allowed");
+        snapshotStakingPool.transferFrom(bob.addr, alice.addr, 1 ether);
     }
 
     function _snapshot(uint256 amount) internal {
@@ -262,6 +443,21 @@ contract SnapshotStakingPoolTest is Test {
         vm.prank(distributor);
         rewardToken.approve(address(snapshotStakingPool), amount);
         vm.prank(distributor);
+        vm.warp(block.timestamp + snapshotDelay + 1);
         snapshotStakingPool.accrue(amount);
+    }
+
+    function _stake(address staker, uint256 amount) internal {
+        vm.prank(owner);
+        stakeToken.transfer(staker, amount);
+        vm.prank(staker);
+        stakeToken.approve(address(snapshotStakingPool), amount);
+        vm.prank(staker);
+        snapshotStakingPool.stake(amount);
+    }
+
+    function _unstake(address staker, uint256 amount) internal {
+        vm.prank(staker);
+        snapshotStakingPool.unstake(amount);
     }
 }
