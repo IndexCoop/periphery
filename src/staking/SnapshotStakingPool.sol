@@ -15,6 +15,25 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 /// on snapshots taken when rewards are accrued.
 contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, ReentrancyGuard {
 
+    /* ERRORS */
+
+    /// @notice Error when accrue is called by non-distributor
+    error MustBeDistributor();
+    /// @notice Error when trying to accrue zero rewards
+    error CannotAccrueZero();
+    /// @notice Error when trying to accrue rewards with zero staked supply
+    error CannotAccrueWithZeroStakedSupply();
+    /// @notice Error when trying to accrue rewards before snapshot delay
+    error SnapshotDelayNotPassed();
+    /// @notice Error when trying to claim rewards from past snapshots
+    error CannotClaimFromPastSnapshots();
+    /// @notice Error when snapshot id is invalid
+    error InvalidSnapshotId();
+    /// @notice Error when snapshot id does not exist
+    error NonExistentSnapshotId();
+    /// @notice Error when transfers are attempted
+    error TransfersNotAllowed();
+
     /* EVENTS */
 
     /// @notice Emitted when the reward distributor is changed.
@@ -70,7 +89,7 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @dev Reverts if the caller is not the distributor.
     modifier onlyDistributor() {
-        require(msg.sender == distributor, "Must be distributor");
+        if (msg.sender != distributor) revert MustBeDistributor();
         _;
     }
 
@@ -83,16 +102,15 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @inheritdoc ISnapshotStakingPool
     function unstake(uint256 amount) public nonReentrant {
-        require(amount > 0, "Cannot unstake 0");
         super._burn(msg.sender, amount);
         stakeToken.transfer(msg.sender, amount);
     }
 
     /// @inheritdoc ISnapshotStakingPool
     function accrue(uint256 amount) external nonReentrant onlyDistributor {
-        require(amount > 0, "Cannot accrue 0");
-        require(totalSupply() > 0, "Cannot accrue with 0 staked supply");
-        require(canAccrue(), "Snapshot delay not passed");
+        if (amount == 0) revert CannotAccrueZero();
+        if (totalSupply() == 0) revert CannotAccrueWithZeroStakedSupply();
+        if (!canAccrue()) revert SnapshotDelayNotPassed();
         rewardToken.transferFrom(msg.sender, address(this), amount);
         lastSnapshotTime = block.timestamp;
         rewardSnapshots.push(amount);
@@ -103,19 +121,13 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     function claim() public nonReentrant {
         uint256 currentId = _getCurrentSnapshotId();
         uint256 lastId = nextClaimId[msg.sender];
-        uint256 amount = rewardOfInRange(msg.sender, lastId, currentId);
-        require(amount > 0, "No rewards to claim");
-        nextClaimId[msg.sender] = currentId + 1;
-        rewardToken.transfer(msg.sender, amount);
+        _claim(msg.sender, lastId, currentId);
     }
 
     /// @inheritdoc ISnapshotStakingPool
     function claimPartial(uint256 startSnapshotId, uint256 endSnapshotId) public nonReentrant {
-        require(startSnapshotId >= nextClaimId[msg.sender], "Cannot claim from past snapshots");
-        uint256 amount = rewardOfInRange(msg.sender, startSnapshotId, endSnapshotId);
-        require(amount > 0, "No rewards to claim");
-        nextClaimId[msg.sender] = endSnapshotId + 1;
-        rewardToken.transfer(msg.sender, amount);
+        if (startSnapshotId < nextClaimId[msg.sender]) revert CannotClaimFromPastSnapshots();
+        _claim(msg.sender, startSnapshotId, endSnapshotId);
     }
 
     /* ADMIN FUNCTIONS */
@@ -136,12 +148,12 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @notice Prevents transfers of the staked token.
     function transfer(address /*recipient*/, uint256 /*amount*/) public pure override(ERC20, IERC20) returns (bool) {
-        revert("Transfers not allowed");
+        revert TransfersNotAllowed();
     }
 
     /// @notice Prevents transfers of the staked token.
     function transferFrom(address /*sender*/, address /*recipient*/, uint256 /*amount*/) public pure override(ERC20, IERC20) returns (bool) {
-        revert("Transfers not allowed");
+        revert TransfersNotAllowed();
     }
 
     /* VIEW FUNCTIONS */
@@ -160,8 +172,8 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @inheritdoc ISnapshotStakingPool
     function rewardOfInRange(address account, uint256 startSnapshotId, uint256 endSnapshotId) public view returns (uint256) {
-        require(startSnapshotId > 0, "ERC20Snapshot: id is 0");
-        require(startSnapshotId <= endSnapshotId && endSnapshotId <= _getCurrentSnapshotId(), "ERC20Snapshot: nonexistent id");
+        if (startSnapshotId == 0) revert InvalidSnapshotId();
+        if (startSnapshotId > endSnapshotId || endSnapshotId > _getCurrentSnapshotId()) revert NonExistentSnapshotId();
 
         uint256 rewards = 0;
         for (uint256 i = startSnapshotId; i <= endSnapshotId; i++) {
@@ -172,15 +184,15 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @inheritdoc ISnapshotStakingPool
     function rewardOfAt(address account, uint256 snapshotId) public view virtual returns (uint256) {
-        require(snapshotId > 0, "ERC20Snapshot: id is 0");
-        require(snapshotId <= _getCurrentSnapshotId(), "ERC20Snapshot: nonexistent id");
+        if (snapshotId == 0) revert InvalidSnapshotId();
+        if (snapshotId > _getCurrentSnapshotId()) revert NonExistentSnapshotId();
         return _rewardOfAt(account, snapshotId);
     }
 
     /// @inheritdoc ISnapshotStakingPool
     function rewardAt(uint256 snapshotId) public view virtual returns (uint256) {
-        require(snapshotId > 0, "ERC20Snapshot: id is 0");
-        require(snapshotId <= _getCurrentSnapshotId(), "ERC20Snapshot: nonexistent id");
+        if (snapshotId == 0) revert InvalidSnapshotId();
+        if (snapshotId > _getCurrentSnapshotId()) revert NonExistentSnapshotId();
         return _rewardAt(snapshotId);
     }
 
@@ -205,13 +217,18 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     /* INTERNAL FUNCTIONS */
 
     function _stake(address account, uint256 amount) internal {
-        require(amount > 0, "Cannot stake 0");
         if (nextClaimId[account] == 0) {
             uint256 currentId = _getCurrentSnapshotId();
             nextClaimId[account] = currentId > 0 ? currentId : 1;
         }
         stakeToken.transferFrom(account, address(this), amount);
         super._mint(msg.sender, amount);
+    }
+
+    function _claim(address account, uint256 startSnapshotId, uint256 endSnapshotId) internal {
+        uint256 amount = rewardOfInRange(account, startSnapshotId, endSnapshotId);
+        nextClaimId[account] = endSnapshotId + 1;
+        rewardToken.transfer(account, amount);
     }
 
     function _rewardAt(uint256 snapshotId) internal view returns (uint256) {

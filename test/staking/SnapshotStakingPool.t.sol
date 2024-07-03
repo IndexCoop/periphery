@@ -88,10 +88,6 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.balanceOf(bob.addr), amount);
         assertEq(snapshotStakingPool.nextClaimId(bob.addr), 1);
         assertEq(snapshotStakingPool.getCurrentSnapshotId(), 0);
-
-        vm.prank(bob.addr);
-        vm.expectRevert("Cannot stake 0");
-        snapshotStakingPool.stake(0);
     }
 
     function testUnstake() public {
@@ -110,10 +106,6 @@ contract SnapshotStakingPoolTest is Test {
 
         assertEq(stakeToken.balanceOf(bob.addr), amount);
         assertEq(snapshotStakingPool.balanceOf(bob.addr), 0);
-
-        vm.prank(bob.addr);
-        vm.expectRevert("Cannot unstake 0");
-        snapshotStakingPool.unstake(0);
     }
 
     function testAccrue() public {
@@ -142,22 +134,22 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.getCurrentSnapshotId(), 1);
 
         vm.prank(distributor);
-        vm.expectRevert("Snapshot delay not passed");
+        vm.expectRevert(SnapshotStakingPool.SnapshotDelayNotPassed.selector);
         snapshotStakingPool.accrue(amount);
 
         vm.prank(distributor);
-        vm.expectRevert("Cannot accrue 0");
+        vm.expectRevert(SnapshotStakingPool.CannotAccrueZero.selector);
         snapshotStakingPool.accrue(0);
 
         vm.prank(bob.addr);
         snapshotStakingPool.unstake(amount);
 
         vm.prank(distributor);
-        vm.expectRevert("Cannot accrue with 0 staked supply");
+        vm.expectRevert(SnapshotStakingPool.CannotAccrueWithZeroStakedSupply.selector);
         snapshotStakingPool.accrue(amount);
 
         vm.prank(bob.addr);
-        vm.expectRevert("Must be distributor");
+        vm.expectRevert(SnapshotStakingPool.MustBeDistributor.selector);
         snapshotStakingPool.accrue(amount);
     }
 
@@ -171,10 +163,10 @@ contract SnapshotStakingPoolTest is Test {
     }
 
     function testRewardAt() public {
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.rewardAt(0);
 
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.rewardAt(1);
 
         _stake(bob.addr, 1 ether);
@@ -182,15 +174,15 @@ contract SnapshotStakingPoolTest is Test {
 
         assertEq(snapshotStakingPool.rewardAt(1), 1 ether);
 
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.rewardAt(2);
     }
 
     function testRewardOfAt() public {
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.rewardOfAt(bob.addr, 0);
 
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.rewardOfAt(bob.addr, 1);
 
         _stake(bob.addr, 1 ether);
@@ -206,20 +198,20 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.rewardOfAt(bob.addr, 2), 0);
         assertEq(snapshotStakingPool.rewardOfAt(alice.addr, 2), 1 ether);
 
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.rewardOfAt(bob.addr, 3);
     }
 
     function testRewardOfInRange() public {
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.rewardOfInRange(bob.addr, 0, 0);
 
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.rewardOfInRange(bob.addr, 0, 1);
 
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.rewardOfInRange(bob.addr, 1, 1);
 
         _stake(bob.addr, 1 ether);
@@ -235,17 +227,17 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.rewardOfInRange(bob.addr, 1, 2), 2 ether);
         assertEq(snapshotStakingPool.rewardOfInRange(alice.addr, 1, 3), 3 ether);
 
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.rewardOfInRange(bob.addr, 1, 4);
     }
 
     function testGetPendingRewards() public {
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.getPendingRewards(bob.addr);
 
         _stake(bob.addr, 1 ether);
         _stake(alice.addr, 1 ether);
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.getPendingRewards(bob.addr);
 
         _snapshot(2 ether);
@@ -254,7 +246,7 @@ contract SnapshotStakingPoolTest is Test {
 
         vm.prank(bob.addr);
         snapshotStakingPool.claim();
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 0);
 
         _snapshot(1 ether);
@@ -305,13 +297,13 @@ contract SnapshotStakingPoolTest is Test {
 
     function testClaim() public {
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.claim();
 
         _stake(bob.addr, 1 ether);
         _stake(alice.addr, 1 ether);
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.claim();
 
         _snapshot(2 ether);
@@ -333,10 +325,10 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.nextClaimId(alice.addr), 3);
 
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.claim();
         vm.prank(alice.addr);
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.claim();
 
         _snapshot(1 ether);
@@ -359,15 +351,15 @@ contract SnapshotStakingPoolTest is Test {
 
     function testClaimPartial() public {
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.claimPartial(0, 0);
 
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: id is 0");
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
         snapshotStakingPool.claimPartial(0, 1);
 
         vm.prank(bob.addr);
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.claimPartial(1, 1);
 
         _stake(bob.addr, 1 ether);
@@ -381,7 +373,7 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.nextClaimId(bob.addr), 2);
 
         vm.prank(bob.addr);
-        vm.expectRevert("Cannot claim from past snapshots");
+        vm.expectRevert(SnapshotStakingPool.CannotClaimFromPastSnapshots.selector);
         snapshotStakingPool.claimPartial(1, 1);
 
         _snapshot(2 ether);
@@ -400,11 +392,11 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.nextClaimId(alice.addr), 4);
 
         vm.prank(alice.addr);
-        vm.expectRevert("Cannot claim from past snapshots");
+        vm.expectRevert(SnapshotStakingPool.CannotClaimFromPastSnapshots.selector);
         snapshotStakingPool.claimPartial(1, 3);
 
         vm.prank(alice.addr);
-        vm.expectRevert("ERC20Snapshot: nonexistent id");
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         snapshotStakingPool.claimPartial(4, 4);
 
         _unstake(bob.addr, 1 ether);
@@ -422,7 +414,7 @@ contract SnapshotStakingPoolTest is Test {
         _stake(bob.addr, 1 ether);
 
         vm.prank(bob.addr);
-        vm.expectRevert("Transfers not allowed");
+        vm.expectRevert(SnapshotStakingPool.TransfersNotAllowed.selector);
         snapshotStakingPool.transfer(alice.addr, 1 ether);
     }
 
@@ -433,7 +425,7 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool.approve(alice.addr, 1 ether);
 
         vm.prank(alice.addr);
-        vm.expectRevert("Transfers not allowed");
+        vm.expectRevert(SnapshotStakingPool.TransfersNotAllowed.selector);
         snapshotStakingPool.transferFrom(bob.addr, alice.addr, 1 ether);
     }
 
