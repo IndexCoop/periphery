@@ -17,7 +17,9 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /* EVENTS */
 
+    /// @notice Emitted when the reward distributor is changed.
     event DistributorChanged(address newDistributor);
+    /// @notice Emitted when the snapshot delay is changed.
     event SnapshotDelayChanged(uint256 newSnapshotDelay);
 
     /* IMMUTABLES */
