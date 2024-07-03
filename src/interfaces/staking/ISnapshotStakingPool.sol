@@ -88,6 +88,11 @@ interface ISnapshotStakingPool is IERC20 {
     /// @return The total pool reward at the time `snapshotId`
     function rewardAt(uint256 snapshotId) external view returns (uint256);
 
+    /// @notice Retrieves the rewards across all snapshots for `account`.
+    /// @param account The account to retrieve rewards for
+    /// @return The rewards across all snapshots for `account`
+    function getLifetimeRewards(address account) external view returns (uint256);
+
     /// @notice Check if rewards can be accrued.
     /// @return Boolean indicating if rewards can be accrued
     function canAccrue() external view returns (bool);

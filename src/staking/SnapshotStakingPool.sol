@@ -202,6 +202,11 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     }
 
     /// @inheritdoc ISnapshotStakingPool
+    function getLifetimeRewards(address account) public view returns (uint256) {
+        return rewardOfInRange(account, 1, _getCurrentSnapshotId());
+    }
+
+    /// @inheritdoc ISnapshotStakingPool
     function canAccrue() public view returns (bool) {
         return block.timestamp >= lastSnapshotTime + snapshotDelay;
     }

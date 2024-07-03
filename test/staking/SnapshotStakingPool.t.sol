@@ -293,6 +293,29 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.getRewardSnapshots()[1], 2 ether);
     }
 
+    function testGetLifetimeRewards() public {
+        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
+        snapshotStakingPool.getLifetimeRewards(bob.addr);
+
+        _stake(bob.addr, 1 ether);
+        _stake(alice.addr, 1 ether);
+        _snapshot(2 ether);
+
+        assertEq(snapshotStakingPool.getLifetimeRewards(bob.addr), 1 ether);
+        assertEq(snapshotStakingPool.getLifetimeRewards(alice.addr), 1 ether);
+
+        _snapshot(2 ether);
+
+        assertEq(snapshotStakingPool.getLifetimeRewards(bob.addr), 2 ether);
+        assertEq(snapshotStakingPool.getLifetimeRewards(alice.addr), 2 ether);
+
+        _unstake(alice.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getLifetimeRewards(bob.addr), 3 ether);
+        assertEq(snapshotStakingPool.getLifetimeRewards(alice.addr), 2 ether);
+    }
+
     function testCanAccrue() public {
         assertEq(snapshotStakingPool.canAccrue(), false);
 
