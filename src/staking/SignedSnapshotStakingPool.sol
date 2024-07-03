@@ -15,8 +15,16 @@ import {SnapshotStakingPool} from "./SnapshotStakingPool.sol";
 contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakingPool, EIP712 {
     string private constant MESSAGE_TYPE = "StakeMessage(string message)";
 
+    /* ERRORS */
+
+    /// @notice Error when staker is not approved
+    error NotApprovedStaker();
+    /// @notice Error when signature is invalid
+    error InvalidSignature();
+
     /* EVENTS */
 
+    /// @notice Emitted when a staker has message signature approved
     event StakerApproved(address indexed staker);
 
     /* STORAGE */
@@ -58,7 +66,7 @@ contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakin
 
     /// @inheritdoc ISignedSnapshotStakingPool
     function stake(uint256 _amount) external override(SnapshotStakingPool, ISignedSnapshotStakingPool) nonReentrant {
-        require(isApprovedStaker[msg.sender], "Not approved staker");
+        if (!isApprovedStaker[msg.sender]) revert NotApprovedStaker();
         _stake(msg.sender, _amount);
     }
 
@@ -93,7 +101,7 @@ contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakin
     /// @param staker The staker to approve
     /// @param signature The signature to verify
     function _approveStaker(address staker, bytes calldata signature) internal {
-        require(SignatureChecker.isValidSignatureNow(staker, getStakeSignatureDigest(), signature), "Invalid signature");
+        if (!SignatureChecker.isValidSignatureNow(staker, getStakeSignatureDigest(), signature)) revert InvalidSignature();
         isApprovedStaker[staker] = true;
         emit StakerApproved(staker);
     }
