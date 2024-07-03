@@ -88,6 +88,19 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.balanceOf(bob.addr), amount);
         assertEq(snapshotStakingPool.nextClaimId(bob.addr), 1);
         assertEq(snapshotStakingPool.getCurrentSnapshotId(), 0);
+
+        _snapshot(1 ether);
+        _snapshot(1 ether);
+
+        vm.prank(owner);
+        stakeToken.transfer(alice.addr, amount);
+        vm.prank(alice.addr);
+        stakeToken.approve(address(snapshotStakingPool), amount);
+
+        vm.prank(alice.addr);
+        snapshotStakingPool.stake(amount);
+
+        assertEq(snapshotStakingPool.nextClaimId(alice.addr), snapshotStakingPool.getCurrentSnapshotId());
     }
 
     function testUnstake() public {
@@ -293,6 +306,19 @@ contract SnapshotStakingPoolTest is Test {
 
         vm.warp(block.timestamp + snapshotDelay + 1);
         assertEq(snapshotStakingPool.canAccrue(), true);
+    }
+
+    function testGetTimeUntilNextSnapshot() public {
+        vm.warp(block.timestamp + snapshotDelay + 1);
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshot(), 0);
+
+        _stake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshot(), snapshotDelay);
+
+        vm.warp(block.timestamp + snapshotDelay - 10);
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshot(), 10);
     }
 
     function testClaim() public {
