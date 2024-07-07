@@ -262,7 +262,7 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @inheritdoc ISnapshotStakingPool
     function getNextSnapshotBufferTime() public view returns (uint256) {
-        return lastSnapshotTime + snapshotDelay - snapshotBuffer;
+        return getNextSnapshotTime() - snapshotBuffer;
     }
 
     /* INTERNAL FUNCTIONS */
