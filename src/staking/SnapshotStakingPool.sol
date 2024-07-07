@@ -12,7 +12,9 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.
 /// @title SnapshotStakingPool
 /// @author Index Cooperative
 /// @notice A contract for staking `stakeToken` and receiving `rewardToken` based 
-/// on snapshots taken when rewards are accrued.
+/// on snapshots taken when rewards are accrued. Snapshots are taken at a minimum
+/// interval of `snapshotDelay` seconds. Staking is not allowed `snapshotBuffer` 
+/// seconds before a snapshot is taken. Rewards are distributed by the `distributor`.
 contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, ReentrancyGuard {
 
     /* ERRORS */
@@ -73,30 +75,30 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /* CONSTRUCTOR */
 
-    /// @param _name Name of the staked token
-    /// @param _symbol Symbol of the staked token
-    /// @param _rewardToken Instance of the reward token
-    /// @param _stakeToken Instance of the stake token
-    /// @param _distributor Address of the distributor
-    /// @param _snapshotBuffer The buffer time before snapshots during which staking is not allowed
-    /// @param _snapshotDelay The minimum amount of time between snapshots
+    /// @param name Name of the staked token
+    /// @param symbol Symbol of the staked token
+    /// @param rewardToken_ Instance of the reward token
+    /// @param stakeToken_ Instance of the stake token
+    /// @param distributor_ Address of the distributor
+    /// @param snapshotBuffer_ The buffer time before snapshots during which staking is not allowed
+    /// @param snapshotDelay_ The minimum amount of time between snapshots
     constructor(
-        string memory _name,
-        string memory _symbol,
-        IERC20 _rewardToken,
-        IERC20 _stakeToken,
-        address _distributor,
-        uint256 _snapshotBuffer,
-        uint256 _snapshotDelay
+        string memory name,
+        string memory symbol,
+        IERC20 rewardToken_,
+        IERC20 stakeToken_,
+        address distributor_,
+        uint256 snapshotBuffer_,
+        uint256 snapshotDelay_
     )
-        ERC20(_name, _symbol)
+        ERC20(name, symbol)
     {
-        if (_snapshotBuffer > _snapshotDelay) revert InvalidSnapshotBuffer();
-        rewardToken = _rewardToken;
-        stakeToken = _stakeToken;
-        distributor = _distributor;
-        snapshotBuffer = _snapshotBuffer;
-        snapshotDelay = _snapshotDelay;
+        if (snapshotBuffer_ > snapshotDelay_) revert InvalidSnapshotBuffer();
+        rewardToken = rewardToken_;
+        stakeToken = stakeToken_;
+        distributor = distributor_;
+        snapshotBuffer = snapshotBuffer_;
+        snapshotDelay = snapshotDelay_;
         lastSnapshotTime = block.timestamp;
     }
 

@@ -11,7 +11,10 @@ import {SnapshotStakingPool} from "./SnapshotStakingPool.sol";
 /// @title SignedSnapshotStakingPool
 /// @author Index Cooperative
 /// @notice A contract for staking `stakeToken` and receiving `rewardToken` based 
-/// on snapshots taken when rewards are accrued.
+/// on snapshots taken when rewards are accrued. Snapshots are taken at a minimum
+/// interval of `snapshotDelay` seconds. Staking is not allowed `snapshotBuffer` 
+/// seconds before a snapshot is taken. Rewards are distributed by the `distributor`.
+/// Stakers must sign an agreement `message` to stake.
 contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakingPool, EIP712 {
     string private constant MESSAGE_TYPE = "StakeMessage(string message)";
 
@@ -69,20 +72,20 @@ contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakin
     /* STAKER FUNCTIONS */
 
     /// @inheritdoc ISignedSnapshotStakingPool
-    function stake(uint256 _amount) external override(SnapshotStakingPool, ISignedSnapshotStakingPool) nonReentrant {
+    function stake(uint256 amount) external override(SnapshotStakingPool, ISignedSnapshotStakingPool) nonReentrant {
         if (!isApprovedStaker[msg.sender]) revert NotApprovedStaker();
-        _stake(msg.sender, _amount);
+        _stake(msg.sender, amount);
     }
 
     /// @inheritdoc ISignedSnapshotStakingPool
-    function stake(uint256 _amount, bytes calldata _signature) external nonReentrant {
-        _approveStaker(msg.sender, _signature);
-        _stake(msg.sender, _amount);
+    function stake(uint256 amount, bytes calldata signature) external nonReentrant {
+        _approveStaker(msg.sender, signature);
+        _stake(msg.sender, amount);
     }
 
     /// @inheritdoc ISignedSnapshotStakingPool
-    function approveStaker(bytes calldata _signature) external {
-        _approveStaker(msg.sender, _signature);
+    function approveStaker(bytes calldata signature) external {
+        _approveStaker(msg.sender, signature);
     }
 
     /* ADMIN FUNCTIONS */

@@ -52,8 +52,6 @@ interface ISnapshotStakingPool is IERC20 {
     /// @param endSnapshotId The snapshot id to end the partial claim
     function claimPartial(uint256 startSnapshotId, uint256 endSnapshotId) external;
 
-    /* ========== Admin Functions ========== */
-
     /// @notice ONLY OWNER: Update the distributor address.
     /// @param newDistributor The new distributor address
     function setDistributor(address newDistributor) external;
@@ -65,8 +63,6 @@ interface ISnapshotStakingPool is IERC20 {
     /// @notice ONLY OWNER: Update the snapshot delay. Can set to 0 to disable snapshot delay.
     /// @param newSnapshotDelay The new snapshot delay
     function setSnapshotDelay(uint256 newSnapshotDelay) external;
-
-    /* ========== View Functions ========== */
 
     /// @notice Get the current snapshot id.
     /// @return The current snapshot id
