@@ -190,19 +190,15 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     function getPendingRewards(address account) public view returns (uint256) {
         uint256 currentId = _getCurrentSnapshotId();
         uint256 lastId = nextClaimId[account];
-        return rewardOfInRange(account, lastId, currentId);
+        if (lastId == 0 || currentId == 0 || lastId > currentId) return 0;
+        return _rewardOfInRange(account, lastId, currentId);
     }
 
     /// @inheritdoc ISnapshotStakingPool
     function rewardOfInRange(address account, uint256 startSnapshotId, uint256 endSnapshotId) public view returns (uint256) {
         if (startSnapshotId == 0) revert InvalidSnapshotId();
         if (startSnapshotId > endSnapshotId || endSnapshotId > _getCurrentSnapshotId()) revert NonExistentSnapshotId();
-
-        uint256 rewards = 0;
-        for (uint256 i = startSnapshotId; i <= endSnapshotId; i++) {
-            rewards += _rewardOfAt(account, i);
-        }
-        return rewards;
+        return _rewardOfInRange(account, startSnapshotId, endSnapshotId);
     }
 
     /// @inheritdoc ISnapshotStakingPool
@@ -226,7 +222,9 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @inheritdoc ISnapshotStakingPool
     function getLifetimeRewards(address account) public view returns (uint256) {
-        return rewardOfInRange(account, 1, _getCurrentSnapshotId());
+        uint256 currentId = _getCurrentSnapshotId();
+        if (nextClaimId[account] == 0 || currentId == 0) return 0;
+        return _rewardOfInRange(account, 1, currentId);
     }
 
     /// @inheritdoc ISnapshotStakingPool
@@ -289,5 +287,13 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     function _rewardOfAt(address account, uint256 snapshotId) internal view returns (uint256) {
         return _rewardAt(snapshotId) * balanceOfAt(account, snapshotId) / totalSupplyAt(snapshotId);
+    }
+
+    function _rewardOfInRange(address account, uint256 startSnapshotId, uint256 endSnapshotId) internal view returns (uint256) {
+        uint256 rewards = 0;
+        for (uint256 i = startSnapshotId; i <= endSnapshotId; i++) {
+            rewards += _rewardOfAt(account, i);
+        }
+        return rewards;
     }
 }

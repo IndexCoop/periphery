@@ -284,13 +284,12 @@ contract SnapshotStakingPoolTest is Test {
     }
 
     function testGetPendingRewards() public {
-        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotId.selector);
-        snapshotStakingPool.getPendingRewards(bob.addr);
+        assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 0);
 
         _stake(bob.addr, 1 ether);
         _stake(alice.addr, 1 ether);
-        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
-        snapshotStakingPool.getPendingRewards(bob.addr);
+        assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 0);
+        assertEq(snapshotStakingPool.getPendingRewards(alice.addr), 0);
 
         _snapshot(2 ether);
         assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 1 ether);
@@ -298,7 +297,6 @@ contract SnapshotStakingPoolTest is Test {
 
         vm.prank(bob.addr);
         snapshotStakingPool.claim();
-        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
         assertEq(snapshotStakingPool.getPendingRewards(bob.addr), 0);
 
         _snapshot(1 ether);
@@ -333,11 +331,14 @@ contract SnapshotStakingPoolTest is Test {
     }
 
     function testGetLifetimeRewards() public {
-        vm.expectRevert(SnapshotStakingPool.NonExistentSnapshotId.selector);
-        snapshotStakingPool.getLifetimeRewards(bob.addr);
+        assertEq(snapshotStakingPool.getLifetimeRewards(bob.addr), 0);
 
         _stake(bob.addr, 1 ether);
         _stake(alice.addr, 1 ether);
+
+        assertEq(snapshotStakingPool.getLifetimeRewards(bob.addr), 0);
+        assertEq(snapshotStakingPool.getLifetimeRewards(alice.addr), 0);
+
         _snapshot(2 ether);
 
         assertEq(snapshotStakingPool.getLifetimeRewards(bob.addr), 1 ether);
