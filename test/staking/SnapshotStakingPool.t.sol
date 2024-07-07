@@ -18,6 +18,7 @@ contract SnapshotStakingPoolTest is Test {
     VmSafe.Wallet carol = vm.createWallet("carol");
     address public distributor = address(0x5);
 
+    uint256 public snapshotBuffer = 1 days;
     uint256 public snapshotDelay = 30 days;
 
     function setUp() public {
@@ -32,6 +33,7 @@ contract SnapshotStakingPoolTest is Test {
             IERC20(address(rewardToken)),
             IERC20(address(stakeToken)),
             distributor,
+            snapshotBuffer,
             snapshotDelay
         );
     }
@@ -42,7 +44,20 @@ contract SnapshotStakingPoolTest is Test {
         assertEq(snapshotStakingPool.decimals(), 18);
         assertEq(address(snapshotStakingPool.stakeToken()), address(stakeToken));
         assertEq(address(snapshotStakingPool.distributor()), distributor);
+        assertEq(snapshotStakingPool.snapshotBuffer(), snapshotBuffer);
         assertEq(snapshotStakingPool.snapshotDelay(), snapshotDelay);
+        assertEq(snapshotStakingPool.lastSnapshotTime(), block.timestamp);
+
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotBuffer.selector);
+        new SnapshotStakingPool(
+            "stakeToken Staking Pool",
+            "stakeToken-POOL",
+            IERC20(address(rewardToken)),
+            IERC20(address(stakeToken)),
+            distributor,
+            snapshotDelay + 1,
+            snapshotDelay
+        );
     }
 
     function testSetDistributor() public {
@@ -59,6 +74,23 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool.setDistributor(newDistributor);
     }
 
+    function testSetSnapshotBuffer() public {
+        uint256 newSnapshotBuffer = 2 days;
+
+        vm.expectEmit();
+        emit SnapshotStakingPool.SnapshotBufferChanged(newSnapshotBuffer);
+        snapshotStakingPool.setSnapshotBuffer(newSnapshotBuffer);
+
+        assertEq(snapshotStakingPool.snapshotBuffer(), newSnapshotBuffer);
+
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotBuffer.selector);
+        snapshotStakingPool.setSnapshotBuffer(snapshotDelay + 1);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("Ownable: caller is not the owner");
+        snapshotStakingPool.setSnapshotBuffer(newSnapshotBuffer);
+    }
+
     function testSetSnapshotDelay() public {
         uint256 newSnapshotDelay = 365 days;
 
@@ -67,6 +99,9 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool.setSnapshotDelay(newSnapshotDelay);
 
         assertEq(snapshotStakingPool.snapshotDelay(), newSnapshotDelay);
+
+        vm.expectRevert(SnapshotStakingPool.InvalidSnapshotDelay.selector);
+        snapshotStakingPool.setSnapshotDelay(snapshotBuffer - 1);
 
         vm.prank(bob.addr);
         vm.expectRevert("Ownable: caller is not the owner");
@@ -101,6 +136,10 @@ contract SnapshotStakingPoolTest is Test {
         snapshotStakingPool.stake(amount);
 
         assertEq(snapshotStakingPool.nextClaimId(alice.addr), snapshotStakingPool.getCurrentSnapshotId());
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer);
+        vm.expectRevert(SnapshotStakingPool.CannotStakeDuringBuffer.selector);
+        snapshotStakingPool.stake(amount);
     }
 
     function testUnstake() public {
@@ -319,10 +358,11 @@ contract SnapshotStakingPoolTest is Test {
     function testCanAccrue() public {
         assertEq(snapshotStakingPool.canAccrue(), false);
 
+        _stake(bob.addr, 1 ether);
+
         vm.warp(block.timestamp + snapshotDelay + 1);
         assertEq(snapshotStakingPool.canAccrue(), true);
 
-        _stake(bob.addr, 1 ether);
         _snapshot(1 ether);
 
         assertEq(snapshotStakingPool.canAccrue(), false);
@@ -332,16 +372,74 @@ contract SnapshotStakingPoolTest is Test {
     }
 
     function testGetTimeUntilNextSnapshot() public {
+        _stake(bob.addr, 1 ether);
+
         vm.warp(block.timestamp + snapshotDelay + 1);
         assertEq(snapshotStakingPool.getTimeUntilNextSnapshot(), 0);
 
-        _stake(bob.addr, 1 ether);
         _snapshot(1 ether);
 
         assertEq(snapshotStakingPool.getTimeUntilNextSnapshot(), snapshotDelay);
 
         vm.warp(block.timestamp + snapshotDelay - 10);
         assertEq(snapshotStakingPool.getTimeUntilNextSnapshot(), 10);
+    }
+
+    function testGetNextSnapshotTime() public {
+        uint256 oldSnapshotTime = snapshotStakingPool.getNextSnapshotTime();
+        assertEq(oldSnapshotTime, block.timestamp + snapshotDelay);
+
+        _stake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getNextSnapshotTime(), block.timestamp + snapshotDelay);
+        assert(oldSnapshotTime < snapshotStakingPool.getNextSnapshotTime());
+    }
+
+    function testCanStake() public {
+        assertEq(snapshotStakingPool.canStake(), true);
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer - 1);
+        assertEq(snapshotStakingPool.canStake(), true);
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer);
+        assertEq(snapshotStakingPool.canStake(), false);
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer + 1);
+        assertEq(snapshotStakingPool.canStake(), false);
+    }
+
+    function testGetTimeUntilNextSnapshotBuffer() public {
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshotBuffer(), snapshotDelay - snapshotBuffer);
+
+        _stake(bob.addr, 1 ether);
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer - 1);
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshotBuffer(), 1);
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer);
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshotBuffer(), 0);
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer + 1);
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshotBuffer(), 0);
+
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshotBuffer(), snapshotDelay - snapshotBuffer);
+
+        vm.warp(block.timestamp + snapshotDelay - snapshotBuffer - 10);
+        assertEq(snapshotStakingPool.getTimeUntilNextSnapshotBuffer(), 10);
+    }
+
+    function testGetNextSnapshotBufferTime() public {
+        uint256 oldSnapshotBuffer = snapshotStakingPool.getNextSnapshotBufferTime();
+        assertEq(oldSnapshotBuffer, block.timestamp + snapshotDelay - snapshotBuffer);
+
+        _stake(bob.addr, 1 ether);
+        _snapshot(1 ether);
+
+        assertEq(snapshotStakingPool.getNextSnapshotBufferTime(), block.timestamp + snapshotDelay - snapshotBuffer);
+        assert(oldSnapshotBuffer < snapshotStakingPool.getNextSnapshotBufferTime());
     }
 
     function testClaim() public {

@@ -17,6 +17,12 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /* ERRORS */
 
+    /// @notice Error when snapshot buffer is greater than snapshot delay
+    error InvalidSnapshotBuffer(); 
+    /// @notice Error when snapshot delay is less than snapshot buffer
+    error InvalidSnapshotDelay(); 
+    /// @notice Error when staking during snapshot buffer period
+    error CannotStakeDuringBuffer();
     /// @notice Error when accrue is called by non-distributor
     error MustBeDistributor();
     /// @notice Error when trying to accrue zero rewards
@@ -38,6 +44,8 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @notice Emitted when the reward distributor is changed.
     event DistributorChanged(address newDistributor);
+    /// @notice Emitted when the snapshot buffer is changed.
+    event SnapshotBufferChanged(uint256 newSnapshotBuffer);
     /// @notice Emitted when the snapshot delay is changed.
     event SnapshotDelayChanged(uint256 newSnapshotDelay);
 
@@ -57,6 +65,8 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     /// @inheritdoc ISnapshotStakingPool
     uint256[] public rewardSnapshots;
     /// @inheritdoc ISnapshotStakingPool
+    uint256 public snapshotBuffer;
+    /// @inheritdoc ISnapshotStakingPool
     uint256 public snapshotDelay;
     /// @inheritdoc ISnapshotStakingPool
     uint256 public lastSnapshotTime;
@@ -68,6 +78,7 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     /// @param _rewardToken Instance of the reward token
     /// @param _stakeToken Instance of the stake token
     /// @param _distributor Address of the distributor
+    /// @param _snapshotBuffer The buffer time before snapshots during which staking is not allowed
     /// @param _snapshotDelay The minimum amount of time between snapshots
     constructor(
         string memory _name,
@@ -75,14 +86,18 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
         IERC20 _rewardToken,
         IERC20 _stakeToken,
         address _distributor,
+        uint256 _snapshotBuffer,
         uint256 _snapshotDelay
     )
         ERC20(_name, _symbol)
     {
+        if (_snapshotBuffer > _snapshotDelay) revert InvalidSnapshotBuffer();
         rewardToken = _rewardToken;
         stakeToken = _stakeToken;
         distributor = _distributor;
+        snapshotBuffer = _snapshotBuffer;
         snapshotDelay = _snapshotDelay;
+        lastSnapshotTime = block.timestamp;
     }
 
     /* MODIFIERS */
@@ -139,7 +154,15 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
     }
 
     /// @inheritdoc ISnapshotStakingPool
+    function setSnapshotBuffer(uint256 newSnapshotBuffer) external onlyOwner {
+        if (newSnapshotBuffer > snapshotDelay) revert InvalidSnapshotBuffer();
+        snapshotBuffer = newSnapshotBuffer;
+        emit SnapshotBufferChanged(newSnapshotBuffer);
+    }
+
+    /// @inheritdoc ISnapshotStakingPool
     function setSnapshotDelay(uint256 newSnapshotDelay) external onlyOwner {
+        if (snapshotBuffer > newSnapshotDelay) revert InvalidSnapshotDelay();
         snapshotDelay = newSnapshotDelay;
         emit SnapshotDelayChanged(newSnapshotDelay);
     }
@@ -208,7 +231,7 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
 
     /// @inheritdoc ISnapshotStakingPool
     function canAccrue() public view returns (bool) {
-        return block.timestamp >= lastSnapshotTime + snapshotDelay;
+        return block.timestamp >= getNextSnapshotTime();
     }
 
     /// @inheritdoc ISnapshotStakingPool
@@ -216,12 +239,36 @@ contract SnapshotStakingPool is ISnapshotStakingPool, Ownable, ERC20Snapshot, Re
         if (canAccrue()) {
             return 0;
         }
-        return (lastSnapshotTime + snapshotDelay) - block.timestamp;
+        return getNextSnapshotTime() - block.timestamp;
+    }
+
+    /// @inheritdoc ISnapshotStakingPool
+    function getNextSnapshotTime() public view returns (uint256) {
+        return lastSnapshotTime + snapshotDelay;
+    }
+
+    /// @inheritdoc ISnapshotStakingPool
+    function canStake() public view returns (bool) {
+        return block.timestamp < getNextSnapshotBufferTime();
+    }
+
+    /// @inheritdoc ISnapshotStakingPool
+    function getTimeUntilNextSnapshotBuffer() public view returns (uint256) {
+        if (!canStake()) {
+            return 0;
+        }
+        return getNextSnapshotBufferTime() - block.timestamp;
+    }
+
+    /// @inheritdoc ISnapshotStakingPool
+    function getNextSnapshotBufferTime() public view returns (uint256) {
+        return lastSnapshotTime + snapshotDelay - snapshotBuffer;
     }
 
     /* INTERNAL FUNCTIONS */
 
     function _stake(address account, uint256 amount) internal {
+        if (!canStake()) revert CannotStakeDuringBuffer();
         if (nextClaimId[account] == 0) {
             uint256 currentId = _getCurrentSnapshotId();
             nextClaimId[account] = currentId > 0 ? currentId : 1;

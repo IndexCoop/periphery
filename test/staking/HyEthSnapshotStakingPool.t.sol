@@ -33,6 +33,7 @@ contract HyEthSnapshotStakingPoolTest is Test {
     IDebtIssuanceModuleV2 issuanceModule = IDebtIssuanceModuleV2(issuanceModuleAddress);
     IStreamingFeeModule streamingFeeModule = IStreamingFeeModule(streamingFeeModuleAddress);
 
+    uint256 public snapshotBuffer = 1 days;
     uint256 public snapshotDelay = 30 days;
 
     SnapshotStakingPool public snapshotStakingPool;
@@ -55,6 +56,7 @@ contract HyEthSnapshotStakingPoolTest is Test {
             IERC20(hyEthAddress),
             prtHyEth,
             prtFeeSplitExtensionAddress,
+            snapshotBuffer,
             snapshotDelay
         );
 
@@ -87,6 +89,7 @@ contract HyEthSnapshotStakingPoolTest is Test {
         _stake(alice.addr, 1 ether);
         _stake(bob.addr, 1 ether);
 
+        vm.warp(block.timestamp + snapshotDelay + 1);
         prtFeeSplitExtension.accrueFeesAndDistribute();
 
         assert(hyEth.balanceOf(address(snapshotStakingPool)) > 0);

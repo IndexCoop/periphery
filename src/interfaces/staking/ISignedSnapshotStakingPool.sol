@@ -26,6 +26,10 @@ interface ISignedSnapshotStakingPool is ISnapshotStakingPool {
     /// @param signature The signature of the message
     function approveStaker(bytes calldata signature) external;
 
+    /// @notice Set the message to sign when staking
+    /// @param newMessage The new message
+    function setMessage(string calldata newMessage) external;
+
     /// @notice Get the hashed digest of the message to be signed for staking
     /// @return The hashed bytes to be signed
     function getStakeSignatureDigest() external view returns (bytes32);

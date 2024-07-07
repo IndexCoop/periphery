@@ -14,7 +14,10 @@ interface ISnapshotStakingPool is IERC20 {
     /// @notice Distributor of rewards
     function distributor() external view returns (address);
 
-    /// @notice Snapshot delay
+    /// @notice The buffer time before snapshots during which staking is not allowed
+    function snapshotBuffer() external view returns (uint256);
+
+    /// @notice The minimum amount of time between snapshots
     function snapshotDelay() external view returns (uint256);
 
     /// @notice Last snapshot time
@@ -54,6 +57,10 @@ interface ISnapshotStakingPool is IERC20 {
     /// @notice ONLY OWNER: Update the distributor address.
     /// @param newDistributor The new distributor address
     function setDistributor(address newDistributor) external;
+
+    /// @notice ONLY OWNER: Update the snapshot buffer.
+    /// @param newSnapshotBuffer The new snapshot buffer
+    function setSnapshotBuffer(uint256 newSnapshotBuffer) external;
 
     /// @notice ONLY OWNER: Update the snapshot delay. Can set to 0 to disable snapshot delay.
     /// @param newSnapshotDelay The new snapshot delay
@@ -100,4 +107,20 @@ interface ISnapshotStakingPool is IERC20 {
     /// @notice Get the time until the next snapshot.
     /// @return The time until the next snapshot
     function getTimeUntilNextSnapshot() external view returns (uint256);
+
+    /// @notice Get the next snapshot time.
+    /// @return The next snapshot time
+    function getNextSnapshotTime() external view returns (uint256);
+
+    /// @notice Check if staking is allowed.
+    /// @return Boolean indicating if staking is allowed
+    function canStake() external view returns (bool);
+
+    /// @notice Get the time until the next snapshot buffer begins.
+    /// @return The time until the next snapshot buffer begins
+    function getTimeUntilNextSnapshotBuffer() external view returns (uint256);
+
+    /// @notice Get the next snapshot buffer time.
+    /// @return The next snapshot buffer time
+    function getNextSnapshotBufferTime() external view returns (uint256);
 }
