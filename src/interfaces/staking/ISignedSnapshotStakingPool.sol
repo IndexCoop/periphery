@@ -28,7 +28,7 @@ interface ISignedSnapshotStakingPool is ISnapshotStakingPool {
 
     /// @notice Set the message to sign when staking
     /// @param newMessage The new message
-    function setMessage(string calldata newMessage) external;
+    function setMessage(string memory newMessage) external;
 
     /// @notice Get the hashed digest of the message to be signed for staking
     /// @return The hashed bytes to be signed
