@@ -18,6 +18,7 @@ contract SignedSnapshotStakingPoolTest is Test {
     VmSafe.Wallet carol = vm.createWallet("carol");
     address public distributor = address(0x5);
 
+    uint256 public snapshotBuffer = 1 days;
     uint256 public snapshotDelay = 30 days;
 
     string public eip712Name = "Index Coop";
@@ -39,6 +40,7 @@ contract SignedSnapshotStakingPoolTest is Test {
             IERC20(address(rewardToken)),
             IERC20(address(stakeToken)),
             distributor,
+            snapshotBuffer,
             snapshotDelay
         );
     }
@@ -121,6 +123,20 @@ contract SignedSnapshotStakingPoolTest is Test {
         vm.prank(alice.addr);
         vm.expectRevert(SignedSnapshotStakingPool.InvalidSignature.selector);
         snapshotStakingPool.approveStaker(bobSignature);
+    }
+
+    function testSetMessage() public {
+        string memory newMessage = "I have read and accept the Privacy Policy.";
+
+        vm.expectEmit();
+        emit SignedSnapshotStakingPool.MessageChanged(newMessage);
+        snapshotStakingPool.setMessage(newMessage);
+
+        assertEq(snapshotStakingPool.message(), newMessage);
+
+        vm.prank(bob.addr);
+        vm.expectRevert("Ownable: caller is not the owner");
+        snapshotStakingPool.setMessage(newMessage);
     }
 
     function _signStakeMessage(VmSafe.Wallet memory staker) internal returns (bytes memory) {

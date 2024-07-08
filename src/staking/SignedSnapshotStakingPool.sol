@@ -11,7 +11,10 @@ import {SnapshotStakingPool} from "./SnapshotStakingPool.sol";
 /// @title SignedSnapshotStakingPool
 /// @author Index Cooperative
 /// @notice A contract for staking `stakeToken` and receiving `rewardToken` based 
-/// on snapshots taken when rewards are accrued.
+/// on snapshots taken when rewards are accrued. Snapshots are taken at a minimum
+/// interval of `snapshotDelay` seconds. Staking is not allowed `snapshotBuffer` 
+/// seconds before a snapshot is taken. Rewards are distributed by the `distributor`.
+/// Stakers must sign an agreement `message` to stake.
 contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakingPool, EIP712 {
     string private constant MESSAGE_TYPE = "StakeMessage(string message)";
 
@@ -24,6 +27,8 @@ contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakin
 
     /* EVENTS */
 
+    /// @notice Emitted when the message is changed
+    event MessageChanged(string newMessage);
     /// @notice Emitted when a staker has message signature approved
     event StakerApproved(address indexed staker);
 
@@ -44,6 +49,7 @@ contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakin
     /// @param rewardToken Instance of the reward token
     /// @param stakeToken Instance of the stake token
     /// @param distributor Address of the distributor
+    /// @param snapshotBuffer The buffer time before snapshots during which staking is not allowed
     /// @param snapshotDelay The minimum amount of time between snapshots
     constructor(
         string memory eip712Name,
@@ -54,31 +60,39 @@ contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakin
         IERC20 rewardToken,
         IERC20 stakeToken,
         address distributor,
+        uint256 snapshotBuffer,
         uint256 snapshotDelay
     )
         EIP712(eip712Name, eip712Version)
-        SnapshotStakingPool(name, symbol, rewardToken, stakeToken, distributor, snapshotDelay)
+        SnapshotStakingPool(name, symbol, rewardToken, stakeToken, distributor, snapshotBuffer, snapshotDelay)
     {
-        message = stakeMessage;
+        _setMessage(stakeMessage);
     }
 
     /* STAKER FUNCTIONS */
 
     /// @inheritdoc ISignedSnapshotStakingPool
-    function stake(uint256 _amount) external override(SnapshotStakingPool, ISignedSnapshotStakingPool) nonReentrant {
+    function stake(uint256 amount) external override(SnapshotStakingPool, ISignedSnapshotStakingPool) nonReentrant {
         if (!isApprovedStaker[msg.sender]) revert NotApprovedStaker();
-        _stake(msg.sender, _amount);
+        _stake(msg.sender, amount);
     }
 
     /// @inheritdoc ISignedSnapshotStakingPool
-    function stake(uint256 _amount, bytes calldata _signature) external nonReentrant {
-        _approveStaker(msg.sender, _signature);
-        _stake(msg.sender, _amount);
+    function stake(uint256 amount, bytes calldata signature) external nonReentrant {
+        _approveStaker(msg.sender, signature);
+        _stake(msg.sender, amount);
     }
 
     /// @inheritdoc ISignedSnapshotStakingPool
-    function approveStaker(bytes calldata _signature) external {
-        _approveStaker(msg.sender, _signature);
+    function approveStaker(bytes calldata signature) external {
+        _approveStaker(msg.sender, signature);
+    }
+
+    /* ADMIN FUNCTIONS */
+
+    /// @inheritdoc ISignedSnapshotStakingPool
+    function setMessage(string memory newMessage) external onlyOwner {
+        _setMessage(newMessage);
     }
 
     /* VIEW FUNCTIONS */
@@ -104,5 +118,12 @@ contract SignedSnapshotStakingPool is ISignedSnapshotStakingPool, SnapshotStakin
         if (!SignatureChecker.isValidSignatureNow(staker, getStakeSignatureDigest(), signature)) revert InvalidSignature();
         isApprovedStaker[staker] = true;
         emit StakerApproved(staker);
+    }
+
+    /// @dev Set the stake `message` to `newMessage`
+    /// @param newMessage The new message
+    function _setMessage(string memory newMessage) internal {
+        message = newMessage;
+        emit MessageChanged(newMessage);
     }
 }
