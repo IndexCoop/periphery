@@ -11,7 +11,7 @@ import "../src/interfaces/IAuctionRebalanceModule.sol";
 import "../src/interfaces/IConstantPriceAdapter.sol";
 
 contract TestRebalance is Test {
-    uint256 rebalanceBlock = 21028842;
+    uint256 rebalanceBlock = 21036244;
 
     address operator = 0x6904110f17feD2162a11B5FA66B188d801443Ea4;
 
@@ -42,8 +42,8 @@ contract TestRebalance is Test {
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(ic21Address, twentyOneBtcAddress);
         assert(isSellAuction);
 
-        assert(componentQuantityTotal > 3e8);
-        assert(componentQuantityTotal < 3.5e8);
+        assert(componentQuantityTotal > 0.8e8);
+        assert(componentQuantityTotal < 0.9e8);
 
         IAuctionRebalanceModule.BidInfo memory bidInfo = auctionRebalanceModule.getBidPreview(
             ic21Address,
@@ -56,8 +56,8 @@ contract TestRebalance is Test {
 
         assertEq(bidInfo.quantitySentBySet, componentQuantityTotal);
 
-        assert(bidInfo.quantityReceivedBySet > 85 ether);
-        assert(bidInfo.quantityReceivedBySet < 86 ether);
+        assert(bidInfo.quantityReceivedBySet > 22 ether);
+        assert(bidInfo.quantityReceivedBySet < 23 ether);
     }
 
     function testBnbAuction() public {
@@ -67,8 +67,8 @@ contract TestRebalance is Test {
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(ic21Address, twentyOneBnbAddress);
         assert(isSellAuction);
 
-        assert(componentQuantityTotal > 103e8);
-        assert(componentQuantityTotal < 104e8);
+        assert(componentQuantityTotal > 26e8);
+        assert(componentQuantityTotal < 27e8);
 
         IAuctionRebalanceModule.BidInfo memory bidInfo = auctionRebalanceModule.getBidPreview(
             ic21Address,
@@ -81,8 +81,8 @@ contract TestRebalance is Test {
 
         assertEq(bidInfo.quantitySentBySet, componentQuantityTotal);
 
-        assert(bidInfo.quantityReceivedBySet > 23 ether);
-        assert(bidInfo.quantityReceivedBySet < 24 ether);
+        assert(bidInfo.quantityReceivedBySet > 6 ether);
+        assert(bidInfo.quantityReceivedBySet < 7 ether);
     }
 
     function testXrpAuction() public {
@@ -92,8 +92,8 @@ contract TestRebalance is Test {
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(ic21Address, twentyOneXrpAddress);
         assert(isSellAuction);
 
-        assert(componentQuantityTotal > 56361e6);
-        assert(componentQuantityTotal < 56362e6);
+        assert(componentQuantityTotal > 14290e6);
+        assert(componentQuantityTotal < 14291e6);
 
         IAuctionRebalanceModule.BidInfo memory bidInfo = auctionRebalanceModule.getBidPreview(
             ic21Address,
@@ -106,8 +106,8 @@ contract TestRebalance is Test {
 
         assertEq(bidInfo.quantitySentBySet, componentQuantityTotal);
 
-        assert(bidInfo.quantityReceivedBySet > 11 ether);
-        assert(bidInfo.quantityReceivedBySet < 12 ether);
+        assert(bidInfo.quantityReceivedBySet > 2 ether);
+        assert(bidInfo.quantityReceivedBySet < 3.5 ether);
     }
 
     function testAdaAuction() public {
@@ -117,8 +117,8 @@ contract TestRebalance is Test {
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(ic21Address, twentyOneAdaAddress);
         assert(isSellAuction);
 
-        assert(componentQuantityTotal > 41183e6);
-        assert(componentQuantityTotal < 41184e6);
+        assert(componentQuantityTotal > 10442e6);
+        assert(componentQuantityTotal < 10443e6);
 
         IAuctionRebalanceModule.BidInfo memory bidInfo = auctionRebalanceModule.getBidPreview(
             ic21Address,
@@ -131,8 +131,8 @@ contract TestRebalance is Test {
 
         assertEq(bidInfo.quantitySentBySet, componentQuantityTotal);
 
-        assert(bidInfo.quantityReceivedBySet > 5 ether);
-        assert(bidInfo.quantityReceivedBySet < 6 ether);
+        assert(bidInfo.quantityReceivedBySet > 1 ether);
+        assert(bidInfo.quantityReceivedBySet < 2 ether);
     }
 
     function testSolAuction() public {
@@ -142,8 +142,8 @@ contract TestRebalance is Test {
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(ic21Address, twentyOneSolAddress);
         assert(isSellAuction);
 
-        assert(componentQuantityTotal > 355e9);
-        assert(componentQuantityTotal < 356e9);
+        assert(componentQuantityTotal > 90e9);
+        assert(componentQuantityTotal < 91e9);
 
         IAuctionRebalanceModule.BidInfo memory bidInfo = auctionRebalanceModule.getBidPreview(
             ic21Address,
@@ -156,8 +156,8 @@ contract TestRebalance is Test {
 
         assertEq(bidInfo.quantitySentBySet, componentQuantityTotal);
 
-        assert(bidInfo.quantityReceivedBySet > 23 ether);
-        assert(bidInfo.quantityReceivedBySet < 24 ether);
+        assert(bidInfo.quantityReceivedBySet > 6 ether);
+        assert(bidInfo.quantityReceivedBySet < 7 ether);
     }
 
     function testAvaxAuction() public {
@@ -167,8 +167,8 @@ contract TestRebalance is Test {
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(ic21Address, twentyOneAvaxAddress);
         assert(isSellAuction);
 
-        assert(componentQuantityTotal > 546e18);
-        assert(componentQuantityTotal < 547e18);
+        assert(componentQuantityTotal > 138e18);
+        assert(componentQuantityTotal < 139e18);
 
         IAuctionRebalanceModule.BidInfo memory bidInfo = auctionRebalanceModule.getBidPreview(
             ic21Address,
@@ -181,8 +181,8 @@ contract TestRebalance is Test {
 
         assertEq(bidInfo.quantitySentBySet, componentQuantityTotal);
 
-        assert(bidInfo.quantityReceivedBySet > 5 ether);
-        assert(bidInfo.quantityReceivedBySet < 6 ether);
+        assert(bidInfo.quantityReceivedBySet > 1 ether);
+        assert(bidInfo.quantityReceivedBySet < 2 ether);
     }
 
     function testDotAuction() public {
@@ -192,8 +192,8 @@ contract TestRebalance is Test {
         (bool isSellAuction, uint256 componentQuantityTotal) = auctionRebalanceModule.getAuctionSizeAndDirection(ic21Address, twentyOneDotAddress);
         assert(isSellAuction);
 
-        assert(componentQuantityTotal > 2222e10);
-        assert(componentQuantityTotal < 2223e10);
+        assert(componentQuantityTotal > 563e10);
+        assert(componentQuantityTotal < 564e10);
 
         IAuctionRebalanceModule.BidInfo memory bidInfo = auctionRebalanceModule.getBidPreview(
             ic21Address,
@@ -206,8 +206,8 @@ contract TestRebalance is Test {
 
         assertEq(bidInfo.quantitySentBySet, componentQuantityTotal);
 
-        assert(bidInfo.quantityReceivedBySet > 3 ether);
-        assert(bidInfo.quantityReceivedBySet < 4 ether);
+        assert(bidInfo.quantityReceivedBySet > 0 ether);
+        assert(bidInfo.quantityReceivedBySet < 1 ether);
     }
 
     function _startRebalance() internal {
@@ -231,7 +231,7 @@ contract TestRebalance is Test {
                 targetUnit: 0,
                 priceAdapterName:	"ConstantPriceAdapter",
                 priceAdapterConfigData: constantPriceAdapter.getEncodedData(
-                    26.45 ether * 1 ether / 1e8
+                    26.82756243 ether * 1 ether / 1e8
                 )
         });
 
@@ -247,7 +247,7 @@ contract TestRebalance is Test {
                 targetUnit: 0,
                 priceAdapterName:	"ConstantPriceAdapter",
                 priceAdapterConfigData: constantPriceAdapter.getEncodedData(
-                    0.23 ether * 1 ether / 1e8
+                    0.2343369173 ether * 1 ether / 1e8
                 )
         });
 
@@ -256,7 +256,7 @@ contract TestRebalance is Test {
                 targetUnit: 0,
                 priceAdapterName:	"ConstantPriceAdapter",
                 priceAdapterConfigData: constantPriceAdapter.getEncodedData(
-                    0.00021 ether * 1 ether / 1e6
+                    0.0002098450832 ether * 1 ether / 1e6
                 )
         });
 
@@ -265,7 +265,7 @@ contract TestRebalance is Test {
                 targetUnit: 0,
                 priceAdapterName:	"ConstantPriceAdapter",
                 priceAdapterConfigData: constantPriceAdapter.getEncodedData(
-                    0.00014 ether * 1 ether / 1e6
+                    0.0001358940114 ether * 1 ether / 1e6
                 )
         });
 
@@ -274,7 +274,7 @@ contract TestRebalance is Test {
                 targetUnit: 0,
                 priceAdapterName:	"ConstantPriceAdapter",
                 priceAdapterConfigData: constantPriceAdapter.getEncodedData(
-                    0.06638 ether * 1 ether / 1e9
+                    0.06972642859 ether * 1 ether / 1e9
                 )
         });
 
@@ -283,7 +283,7 @@ contract TestRebalance is Test {
                 targetUnit: 0,
                 priceAdapterName:	"ConstantPriceAdapter",
                 priceAdapterConfigData:  constantPriceAdapter.getEncodedData(
-                    0.01051 ether
+                    0.01060123886 ether
                 )
         });
 
@@ -292,7 +292,7 @@ contract TestRebalance is Test {
                 targetUnit: 0,
                 priceAdapterName:	"ConstantPriceAdapter",
                 priceAdapterConfigData:  constantPriceAdapter.getEncodedData(
-                    0.001665 ether * 1 ether / 1e10
+                    0.001660530498 ether * 1 ether / 1e10
                 )
         });
 
