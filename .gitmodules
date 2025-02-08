@@ -7,3 +7,6 @@
 [submodule "lib/uniswapx"]
 	path = lib/uniswapx
 	url = https://github.com/uniswap/uniswapx
+[submodule "lib/index-coop-smart-contracts"]
+	path = lib/index-coop-smart-contracts
+	url = https://github.com/indexcoop/index-coop-smart-contracts
