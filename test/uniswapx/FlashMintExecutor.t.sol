@@ -8,36 +8,33 @@ import {IReactor} from "uniswapx/src/interfaces/IReactor.sol";
 import "../../src/interfaces/IFlashMintDexV5.sol";
 
 contract FlashMintExecutorTest is Test {
-    FlashMintExecutor public flashMintExecutor;
+    FlashMintExecutor flashMintExecutor;
 
     address public owner;
-    address public weth;
-    address public flashMint;
-
     address public mockReactor;
     address public mockSetToken;
     address public mockFlashMint;
     address public nonOwner;
+
     event FlashMintTokenAdded(address indexed token, address indexed flashMintContract);
     event FlashMintTokenRemoved(address indexed token);
 
     function setUp() public {
         owner = msg.sender;
-        weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+
         mockReactor = address(0x1);
         mockSetToken = address(0x2);
         mockFlashMint = address(0x3);
         nonOwner = address(0x4);
+
         flashMintExecutor = new FlashMintExecutor(
             IReactor(mockReactor),
-            weth,
             owner
         );
     }
 
     function testConstructor() public {
         assertEq(address(flashMintExecutor.reactor()), mockReactor, "Incorrect reactor address");
-        assertEq(address(flashMintExecutor.weth()), weth, "Incorrect WETH address");
         assertEq(flashMintExecutor.owner(), owner, "Incorrect owner address");
     }
 
@@ -61,7 +58,7 @@ contract FlashMintExecutorTest is Test {
         vm.prank(owner);
         flashMintExecutor.addFlashMintToken(address(0), IFlashMintDexV5(mockFlashMint));
 
-        vm.expectRevert("Invalid flashMint contract");
+        vm.expectRevert("Invalid FlashMint contract");
         vm.prank(owner);
         flashMintExecutor.addFlashMintToken(mockSetToken, IFlashMintDexV5(address(0)));
     }
